@@ -1,0 +1,43 @@
+# ===== Secrets & environment =====
+.env
+.env.*
+!.env.example
+
+# ===== Trained models — the moat. Never commit. =====
+*.pkl
+*.joblib
+scanner/models/
+
+# ===== Runtime data (auto-accumulates real telemetry: your IPs, filenames, file hashes) =====
+logs.csv
+scanner_logs.csv
+process_logs.csv
+threat_list.csv
+malware_hashes.csv
+archives/
+
+# ===== Quarantined files (real files the scanner moved — never commit) =====
+quarantine/
+scanner/quarantine/
+
+# ===== Local machine config (holds your real folder paths) =====
+scanner_config.json
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# ===== Virtual environments =====
+venv/
+.venv/
+env/
+ENV/
+
+# ===== OS / editor noise =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

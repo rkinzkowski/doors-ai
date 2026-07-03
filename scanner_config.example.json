@@ -1,0 +1,8 @@
+{
+  "watch_folders": [
+    "C:\\Users\\YourName\\Downloads"
+  ],
+  "recursive_watch": false,
+  "log_safe_files": false,
+  "manual_scan_limit": 1000
+}
