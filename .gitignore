@@ -26,3 +26,4 @@ threat_list.csv
 malware_hashes.csv
 publishers.json
 security_config.json
+scheduler_config.json

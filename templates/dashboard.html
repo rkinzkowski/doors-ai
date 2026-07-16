@@ -1347,6 +1347,33 @@
                     </li>
                 </ul>
 
+                <h3>Automation</h3>
+                <p class="muted">Let Doors AI keep itself current on a timer. Both are off by default. Auto-refresh only pulls the plain-text feeds you've approved.</p>
+                <ul class="plain">
+                    <li>
+                        <span>
+                            {% if schedule.auto_scan %}<span class="badge low">on</span>{% else %}<span class="badge medium">off</span>{% endif %}
+                            Re-check watched folders every {{ schedule.scan_interval_hours }}h
+                            {% if schedule.last_scan_time %}<span class="muted">(last: {{ schedule.last_scan_time }})</span>{% endif %}
+                        </span>
+                        <form action="/schedule/update" method="post">
+                            <input type="hidden" name="auto_scan" value="{{ '0' if schedule.auto_scan else '1' }}">
+                            <button type="submit">{{ 'Turn Off' if schedule.auto_scan else 'Turn On' }}</button>
+                        </form>
+                    </li>
+                    <li>
+                        <span>
+                            {% if schedule.auto_feeds %}<span class="badge low">on</span>{% else %}<span class="badge medium">off</span>{% endif %}
+                            Refresh threat feeds every {{ schedule.feed_interval_hours }}h
+                            {% if schedule.last_feeds_time %}<span class="muted">(last: {{ schedule.last_feeds_time }})</span>{% endif %}
+                        </span>
+                        <form action="/schedule/update" method="post">
+                            <input type="hidden" name="auto_feeds" value="{{ '0' if schedule.auto_feeds else '1' }}">
+                            <button type="submit">{{ 'Turn Off' if schedule.auto_feeds else 'Turn On' }}</button>
+                        </form>
+                    </li>
+                </ul>
+
                 <h3>{{ 'Change or Remove Passphrase' if security_locked else 'Set a Passphrase' }}</h3>
                 <p class="muted">{% if security_locked %}Enter a new passphrase to change it, or leave blank and submit to remove the lock.{% else %}Set a passphrase to require it every time this dashboard is opened. Leave blank to keep it unlocked.{% endif %} If you forget it, delete <span class="mono" style="max-width:none;">security_config.json</span> to reset.</p>
                 <div class="tools">
