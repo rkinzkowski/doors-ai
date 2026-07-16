@@ -995,6 +995,7 @@
                             <th>Who Can Reach It</th>
                             <th>What It's For</th>
                             <th>Program</th>
+                            <th>Your Call</th>
                         </tr>
                         {% for port in network.ports %}
                         <tr>
@@ -1011,9 +1012,19 @@
                             </td>
                             <td>{{ port.service or '-' }}</td>
                             <td>{{ port.process or 'unknown' }}{% if port.pid %} <span class="muted">(PID {{ port.pid }})</span>{% endif %}</td>
+                            <td>
+                                {% if port.exe %}
+                                <form action="/system/open-location" method="post">
+                                    <input type="hidden" name="path" value="{{ port.exe }}">
+                                    <button type="submit" title="Open File Explorer to {{ port.exe }}">Show File</button>
+                                </form>
+                                {% else %}
+                                <span class="muted" title="This is a built-in Windows component with no separate file to remove. Turn the feature off in Windows Settings if you don't need it.">Windows component</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="empty">No open doors found.</td></tr>
+                        <tr><td colspan="6" class="empty">No open doors found.</td></tr>
                         {% endfor %}
                     </table>
                 </div>
@@ -1080,6 +1091,12 @@
                             <td>{{ proc.reason }}</td>
                             <td>
                                 <div class="actions">
+                                    {% if proc.path %}
+                                    <form action="/system/open-location" method="post">
+                                        <input type="hidden" name="path" value="{{ proc.path }}">
+                                        <button type="submit" title="Open File Explorer to {{ proc.path }}">Show File</button>
+                                    </form>
+                                    {% endif %}
                                     <form action="/whitelist/add" method="post">
                                         <input type="hidden" name="process_name" value="{{ proc.name }}">
                                         <button class="success" type="submit" title="I know this program - stop flagging it">Trust It</button>

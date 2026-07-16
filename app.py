@@ -1344,6 +1344,33 @@ def quarantine_delete():
     return redirect(url_for("home"))
 
 
+@app.route("/system/open-location", methods=["POST"])
+def open_location():
+    path = request.form.get("path", "").strip()
+
+    if not path or not os.path.exists(path):
+        flash("That file is no longer on disk - the program may have closed or been removed already.", "error")
+        return redirect(url_for("home"))
+
+    if platform.system() != "Windows":
+        flash("Opening a file location is only supported on Windows.", "error")
+        return redirect(url_for("home"))
+
+    try:
+        norm = os.path.normpath(path)
+        if os.path.isfile(norm):
+            # explorer /select, highlights the file inside its folder.
+            subprocess.Popen(["explorer", "/select,", norm])
+        else:
+            os.startfile(norm)
+        flash(f"Opened File Explorer to {os.path.basename(norm)}.", "info")
+    except Exception as e:
+        print(f"[SYSTEM] Failed to open location {path}: {e}")
+        flash(f"Could not open that location: {e}", "error")
+
+    return redirect(url_for("home"))
+
+
 @app.route("/endpoint/rebaseline", methods=["POST"])
 def endpoint_rebaseline():
     if reset_baseline():

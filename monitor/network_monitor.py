@@ -107,11 +107,14 @@ def _collect_listening_ports():
         seen.add(key)
 
         process_name = ""
+        exe_path = ""
         if conn.pid:
             try:
-                process_name = psutil.Process(conn.pid).name()
+                proc = psutil.Process(conn.pid)
+                process_name = proc.name()
+                exe_path = proc.exe() or ""
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                process_name = ""
+                pass
 
         service, severity = REVIEW_PORTS.get(port, ("", "low"))
 
@@ -133,6 +136,7 @@ def _collect_listening_ports():
             "binding": binding,
             "pid": conn.pid or "",
             "process": process_name,
+            "exe": exe_path,
             "service": service,
             "severity": severity,
         })
