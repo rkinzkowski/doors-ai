@@ -51,6 +51,7 @@ from monitor.mitre import tag_technique
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
+    update_feodo,
     update_ipsum,
     update_malware_hashes,
 )
@@ -1076,6 +1077,8 @@ def home():
         "bazaar_has_key": bool(feeds_config.get("malwarebazaar_auth_key")),
         "bazaar_last_sync": feeds_config.get("bazaar_last_sync"),
         "bazaar_last_count": feeds_config.get("bazaar_last_count", 0),
+        "feodo_last_sync": feeds_config.get("feodo_last_sync"),
+        "feodo_last_count": feeds_config.get("feodo_last_count", 0),
     }
 
     return render_template(
@@ -1446,6 +1449,17 @@ def feeds_update_ipsum():
     else:
         flash(f"IPsum update failed: {result['error']}", "error")
 
+    return redirect(url_for("home"))
+
+
+@app.route("/feeds/update-feodo", methods=["POST"])
+def feeds_update_feodo():
+    result = update_feodo()
+    if result["ok"]:
+        check_local_threat_db.cache_clear()
+        flash(f"Threat list updated from Feodo Tracker: {result['count']} botnet C2 address(es).", "success")
+    else:
+        flash(f"Feodo Tracker update failed: {result['error']}", "error")
     return redirect(url_for("home"))
 
 
