@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 import pandas as pd
 import requests
 from sklearn.ensemble import IsolationForest
@@ -49,6 +49,8 @@ from monitor.login_events import (
 from monitor.network_monitor import get_network_snapshot
 
 app = Flask(__name__)
+# Local-only dashboard; the secret key just enables flash messages.
+app.secret_key = "doors-ai-local-dashboard"
 
 PROCESS_LOG = "process_logs.csv"
 SCAN_LOG = "scanner_logs.csv"
@@ -190,19 +192,20 @@ DEMO_IP_POOL = [
 DEMO_USER_AGENTS = ["Chrome", "Firefox", "Edge", "Safari", "Mobile App", "Unknown"]
 
 INFO_TEXT = {
-    "login_records": "Number of login events currently loaded from logs.csv.",
-    "flagged_ips": "IP rows that triggered anomaly, VPN/proxy, or local threat-list checks.",
-    "file_alerts": "Files that need review: malicious, suspicious, or errored. Clean files are not shown here.",
-    "suspicious_processes": "Unique process alerts after deduping repeated child processes.",
-    "ip": "The network address that attempted to sign in.",
-    "login_attempts": "How many sign-in attempts this IP made in the sampled time window.",
-    "location": "Country estimated from the IP address. Private or demo IPs may show Unknown.",
-    "user_agent": "Browser, client, or tool reported by the login request.",
-    "anomaly": "Machine-learning decision: -1 means unusual compared with the current login set; 1 means normal.",
-    "anomaly_score": "Isolation Forest confidence score. Lower or negative scores are more unusual.",
-    "abuse_score": "Local threat-intel confidence from threat_list.csv, from 0 to 100. Higher means more suspicious.",
-    "category": "Human-readable reason from the local threat-intel list or the detector.",
-    "endpoint_alerts": "New persistence entries (registry autoruns, startup items, scheduled tasks, services) plus ransomware canary and burst alerts.",
+    "login_records": "How many sign-in events Doors AI currently knows about.",
+    "flagged_ips": "Addresses that looked unusual, used a VPN/proxy, or matched your threat list.",
+    "file_alerts": "Files that need a look: known malware, suspicious traits, or scan errors. Clean files are not listed.",
+    "suspicious_processes": "Running programs that matched a hacking tool, dangerous command, or odd behavior.",
+    "ip": "The network address the sign-in came from.",
+    "login_attempts": "How many times this address tried to sign in.",
+    "location": "Where the sign-in came from, when known.",
+    "user_agent": "What kind of sign-in it was (browser, remote desktop, this PC, and so on).",
+    "anomaly": "The AI's verdict: Unusual means this sign-in stands out from the others.",
+    "anomaly_score": "How confident the AI is. More negative = more unusual.",
+    "abuse_score": "Threat score from your local threat list, 0 to 100. Higher = more dangerous.",
+    "category": "Why this address was flagged, in plain words.",
+    "endpoint_alerts": "Changes to what runs automatically on this PC (startup programs, scheduled tasks, services) plus ransomware warning signs.",
+    "security_score": "One number summarizing your protection right now. It drops when alerts pile up, protective guards stop, or risky doors are open to your network.",
 }
 
 
@@ -525,6 +528,90 @@ def build_runtime_status(active_alerts):
         "login_import_last_time": login_status.get("last_import_time"),
         "login_import_total": login_status.get("total_imported", 0),
         "active_alerts": active_alerts,
+    }
+
+
+def compute_posture(summary, runtime_status, network, scan_config):
+    """Security health score (0-100) with plain-language recommendations."""
+    score = 100
+    recommendations = []
+
+    if summary["file_alerts"]:
+        score -= min(summary["file_alerts"] * 5, 20)
+        recommendations.append(
+            f"Review {summary['file_alerts']} flagged file(s) in File Protection - mark them safe or malicious."
+        )
+    if summary["suspicious_processes"]:
+        score -= min(summary["suspicious_processes"] * 5, 20)
+        recommendations.append(
+            f"Check {summary['suspicious_processes']} suspicious program(s) in Program Activity."
+        )
+    if summary["endpoint_alerts"]:
+        score -= min(summary["endpoint_alerts"] * 3, 15)
+        recommendations.append(
+            f"Look over {summary['endpoint_alerts']} recent system change(s) in Startup & System Changes."
+        )
+    if summary["flagged_ips"]:
+        score -= min(summary["flagged_ips"] * 2, 10)
+        recommendations.append(
+            f"Review {summary['flagged_ips']} flagged sign-in address(es)."
+        )
+
+    if not runtime_status["scanner_running"]:
+        score -= 10
+        recommendations.append("File Guard is not watching any folders - add a folder in File Protection.")
+    if not runtime_status["process_monitor_running"]:
+        score -= 10
+        recommendations.append("Program Guard stopped - restart Doors AI.")
+    if not runtime_status["endpoint_monitor_running"]:
+        score -= 10
+        recommendations.append("System Guard stopped - restart Doors AI.")
+
+    if runtime_status.get("login_import_requires_admin"):
+        score -= 5
+        recommendations.append(
+            "Run Doors AI as administrator so it can watch Windows sign-ins."
+        )
+
+    if not scan_config.get("ransomware_canaries", True):
+        score -= 5
+        recommendations.append("Ransomware tripwire files are turned off in the scanner settings.")
+
+    risky_open = [
+        p for p in network.get("ports", [])
+        if p["severity"] == "high" and p["binding"] != "localhost only"
+    ]
+    seen_ports = set()
+    for port in risky_open:
+        if port["port"] in seen_ports:
+            continue
+        seen_ports.add(port["port"])
+        score -= 8
+        service = port["service"] or f"port {port['port']}"
+        recommendations.append(
+            f"{service} (port {port['port']}) is reachable from your network - turn it off if you do not use it."
+        )
+    score = max(0, min(100, score))
+
+    if score >= 90:
+        grade, label = "A", "Well protected"
+    elif score >= 80:
+        grade, label = "B", "Good"
+    elif score >= 70:
+        grade, label = "C", "Needs a little attention"
+    elif score >= 60:
+        grade, label = "D", "Needs attention"
+    else:
+        grade, label = "F", "At risk"
+
+    if not recommendations:
+        recommendations.append("You're all set - no action needed right now.")
+
+    return {
+        "score": score,
+        "grade": grade,
+        "label": label,
+        "recommendations": recommendations[:6],
     }
 
 
@@ -967,6 +1054,8 @@ def home():
         print(f"[ERROR] Network snapshot failed: {e}")
         network = {"devices": [], "ports": [], "error": str(e)}
 
+    posture = compute_posture(summary, runtime_status, network, scan_config)
+
     return render_template(
         "dashboard.html",
         data=ip_logs,
@@ -986,6 +1075,7 @@ def home():
         quarantine_entries=quarantine_entries,
         hash_db_count=hash_db_count,
         network=network,
+        posture=posture,
     )
 
 
@@ -999,6 +1089,7 @@ def add_whitelist():
         WHITELIST.add(process_name)
         save_whitelist(WHITELIST)
         print(f"[WHITELIST] Added {process_name}")
+        flash(f"{process_name} added to trusted programs.", "success")
 
     return redirect(url_for("home"))
 
@@ -1013,6 +1104,7 @@ def remove_whitelist():
         WHITELIST.remove(process_name)
         save_whitelist(WHITELIST)
         print(f"[WHITELIST] Removed {process_name}")
+        flash(f"{process_name} removed from trusted programs.", "success")
 
     return redirect(url_for("home"))
 
@@ -1028,9 +1120,11 @@ def terminate_process():
         proc.terminate()
 
         print(f"[PROCESS] Manually terminated {proc_name} with PID {pid}")
+        flash(f"Stopped {proc_name} (PID {pid}).", "success")
 
     except Exception as e:
         print(f"[PROCESS] Failed to terminate PID {pid_raw}: {e}")
+        flash(f"Could not stop that program: {e}", "error")
 
     return redirect(url_for("home"))
 
@@ -1049,6 +1143,9 @@ def archive_logs():
     elif log_type == "login":
         archive_log_file(LOGIN_LOG, LOGIN_LOG_HEADERS)
 
+    if log_type:
+        flash("Log saved to the archives folder and cleared from view.", "success")
+
     return redirect(url_for("home"))
 
 
@@ -1065,6 +1162,9 @@ def clear_logs():
         clear_log_file(ENDPOINT_LOG, ENDPOINT_LOG_HEADERS)
     elif log_type == "login":
         clear_log_file(LOGIN_LOG, LOGIN_LOG_HEADERS)
+
+    if log_type:
+        flash("Log cleared.", "success")
 
     return redirect(url_for("home"))
 
@@ -1096,6 +1196,16 @@ def simulate_login_event():
 def import_windows_logins():
     summary = import_login_events()
     print(f"[LOGIN-IMPORT] Manual import: {summary}")
+
+    if summary["error"] == "requires_admin":
+        flash("Windows only lets administrators read sign-in history. Restart Doors AI as administrator to use this.", "error")
+    elif summary["error"]:
+        flash(f"Import failed: {summary['error']}", "error")
+    elif summary["imported"]:
+        flash(f"Imported {summary['imported']} sign-in event group(s) from Windows.", "success")
+    else:
+        flash("No new sign-in events since the last import.", "info")
+
     return redirect(url_for("home"))
 
 
@@ -1113,8 +1223,10 @@ def add_scan_folder():
             config["recursive_watch"] = recursive_watch
             save_scan_config(config)
             print(f"[SCANNER] Added watch folder: {normalized}")
+            flash(f"Now watching {normalized} for new files.", "success")
         else:
             print(f"[SCANNER] Cannot add missing folder: {normalized}")
+            flash(f"That folder doesn't exist: {normalized}", "error")
 
     return redirect(url_for("home"))
 
@@ -1132,6 +1244,7 @@ def remove_scan_folder():
         ]
         save_scan_config(config)
         print(f"[SCANNER] Removed watch folder: {normalized}")
+        flash(f"Stopped watching {normalized}.", "success")
 
     return redirect(url_for("home"))
 
@@ -1147,8 +1260,14 @@ def scan_now():
         if os.path.isdir(normalized):
             summary = scan_folder(normalized, recursive=recursive)
             print(f"[SCANNER] Manual scan summary for {normalized}: {summary}")
+            flash(
+                f"Scan finished: {summary['scanned']} file(s) checked, "
+                f"{summary['alerts']} flagged, {summary['errors']} error(s).",
+                "success" if not summary["alerts"] else "info",
+            )
         else:
             print(f"[SCANNER] Cannot scan missing folder: {normalized}")
+            flash(f"That folder doesn't exist: {normalized}", "error")
 
     return redirect(url_for("home"))
 
@@ -1161,6 +1280,7 @@ def trust_file():
     if sha256:
         add_trusted_hash(sha256, filename)
         print(f"[SCANNER] User marked {filename or sha256} as safe")
+        flash(f"{filename or 'File'} marked as safe - it won't be flagged again.", "success")
 
     return redirect(url_for("home"))
 
@@ -1179,10 +1299,17 @@ def confirm_malicious_file():
     if located is not None:
         try:
             quarantine_file(located, sha256=sha256, reason="User confirmed malicious")
+            flash(f"{filename} learned as malware and moved to quarantine.", "success")
         except Exception as e:
             print(f"[SCANNER] Failed to quarantine {located}: {e}")
+            flash(f"Fingerprint learned, but the file could not be quarantined: {e}", "error")
     else:
         print(f"[SCANNER] {filename} not found in watch folders; hash learned only")
+        flash(
+            f"Fingerprint learned. {filename} was not found in the watched folders, "
+            "but it will be caught instantly if it ever appears.",
+            "info",
+        )
 
     return redirect(url_for("home"))
 
@@ -1193,8 +1320,11 @@ def quarantine_restore():
 
     if filename:
         ok, detail = restore_quarantined_file(filename)
-        if not ok:
+        if ok:
+            flash(f"{filename} restored to {detail}.", "success")
+        else:
             print(f"[QUARANTINE] Restore failed for {filename}: {detail}")
+            flash(f"Could not restore {filename}: {detail}", "error")
 
     return redirect(url_for("home"))
 
@@ -1205,15 +1335,21 @@ def quarantine_delete():
 
     if filename:
         ok, detail = delete_quarantined_file(filename)
-        if not ok:
+        if ok:
+            flash(f"{filename} permanently deleted from quarantine.", "success")
+        else:
             print(f"[QUARANTINE] Delete failed for {filename}: {detail}")
+            flash(f"Could not delete {filename}: {detail}", "error")
 
     return redirect(url_for("home"))
 
 
 @app.route("/endpoint/rebaseline", methods=["POST"])
 def endpoint_rebaseline():
-    reset_baseline()
+    if reset_baseline():
+        flash("Current setup marked as trusted. Only new changes will alert from now on.", "success")
+    else:
+        flash("Could not reset the baseline - check the console for details.", "error")
     return redirect(url_for("home"))
 
 
@@ -1224,6 +1360,7 @@ def ip_log_threat():
 
     if ip:
         log_threat(ip, reason, score=80)
+        flash(f"{ip} added to your threat list.", "success")
 
     return redirect(url_for("home"))
 
@@ -1235,6 +1372,10 @@ def ip_block():
     if ip:
         block_ip(ip)
         log_threat(ip, "Manually blocked from dashboard", score=90)
+        flash(
+            f"Firewall block requested for {ip}. If Doors AI is not running as administrator, the rule may not have been created.",
+            "info",
+        )
 
     return redirect(url_for("home"))
 
@@ -1246,6 +1387,9 @@ def hashdb_add():
 
     if sha256:
         add_to_hash_db(sha256, description)
+        flash("Malware fingerprint added. Matching files will be quarantined on sight.", "success")
+    else:
+        flash("That doesn't look like a valid SHA256 fingerprint (need 64 hex characters).", "error")
 
     return redirect(url_for("home"))
 

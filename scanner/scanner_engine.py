@@ -42,6 +42,10 @@ SCRIPT_EXTENSIONS = {".bat", ".cmd", ".js", ".ps1", ".vbs", ".hta", ".wsf"}
 # packed malware. Inspect the member list instead of the raw bytes.
 ARCHIVE_EXTENSIONS = {".zip"}
 
+# Macro-enabled Office formats: worth a review alert when they show up in a
+# downloads folder, since macros remain a top malware delivery vehicle.
+MACRO_EXTENSIONS = {".docm", ".dotm", ".xlsm", ".xltm", ".pptm", ".potm", ".ppsm"}
+
 SUSPICIOUS_SCRIPT_PATTERNS = [
     "frombase64string(",
     "-encodedcommand",
@@ -597,9 +601,26 @@ def run_heuristic_classifier(path):
     return probabilities[malicious_index] >= HEURISTIC_MIN_CONFIDENCE
 
 
+def contains_vba_macros(path):
+    """Modern Office files are zips; macros live in vbaProject.bin."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            return any(
+                name.lower().endswith("vbaproject.bin")
+                for name in archive.namelist()
+            )
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 def analyze_file(path):
     """Classify by file type. Returns (result, reason) — result is 'safe' or 'suspicious'."""
     suffix = path.suffix.lower()
+
+    if suffix in MACRO_EXTENSIONS:
+        if contains_vba_macros(path):
+            return "suspicious", "Office document contains macros - open only if you trust the sender"
+        return "safe", "No threat detected"
 
     if suffix in SCRIPT_EXTENSIONS:
         reason = scan_script_content(path)
