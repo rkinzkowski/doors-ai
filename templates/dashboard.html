@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Doors AI Dashboard</title>
+    <title>Doors AI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚪</text></svg>">
     <style>
         :root {
@@ -15,7 +15,6 @@
             --muted: #898781;
             --hairline: #e1e0d9;
             --baseline: #c3c2b7;
-            --ring: rgba(11, 11, 11, 0.10);
             --accent: #2a78d6;
             --accent-ink: #ffffff;
             --status-good: #0ca30c;
@@ -35,7 +34,6 @@
                 --muted: #898781;
                 --hairline: #2c2c2a;
                 --baseline: #383835;
-                --ring: rgba(255, 255, 255, 0.10);
                 --accent: #3987e5;
                 --wash: rgba(255, 255, 255, 0.05);
             }
@@ -50,7 +48,6 @@
             --muted: #898781;
             --hairline: #2c2c2a;
             --baseline: #383835;
-            --ring: rgba(255, 255, 255, 0.10);
             --accent: #3987e5;
             --wash: rgba(255, 255, 255, 0.05);
         }
@@ -67,8 +64,8 @@
         }
 
         h1, h2, h3 { margin: 0; font-weight: 650; }
-        h2 { font-size: 16px; }
-        h3 { font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+        h2 { font-size: 16px; display: inline; }
+        h3 { font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; margin: 18px 0 6px; }
 
         /* ---------- Top bar ---------- */
         .topbar {
@@ -83,22 +80,11 @@
             border-bottom: 1px solid var(--hairline);
         }
 
-        .brand {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            white-space: nowrap;
-        }
-
+        .brand { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
         .brand strong { font-size: 16px; }
         .brand span { color: var(--muted); font-size: 12px; }
 
-        .jump {
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-            margin-left: 8px;
-        }
+        .jump { display: flex; gap: 4px; flex-wrap: wrap; margin-left: 8px; }
 
         .jump a {
             padding: 4px 10px;
@@ -134,13 +120,30 @@
 
         .wrap { max-width: 1500px; margin: 0 auto; padding: 20px 22px 60px; }
 
-        /* ---------- Status pills ---------- */
-        .status-row {
+        /* ---------- Flash messages ---------- */
+        .flashes { display: grid; gap: 8px; margin-bottom: 14px; }
+
+        .flash {
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--hairline);
+            background: var(--surface);
+            font-size: 13.5px;
         }
+
+        .flash::before { font-size: 15px; }
+        .flash.success { border-left: 3px solid var(--status-good); }
+        .flash.success::before { content: '\2713'; color: var(--status-good); font-weight: 700; }
+        .flash.info { border-left: 3px solid var(--accent); }
+        .flash.info::before { content: '\2139'; color: var(--accent); font-weight: 700; }
+        .flash.error { border-left: 3px solid var(--status-critical); }
+        .flash.error::before { content: '\2717'; color: var(--status-critical); font-weight: 700; }
+
+        /* ---------- Status pills ---------- */
+        .status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 
         .pill {
             display: inline-flex;
@@ -156,95 +159,141 @@
 
         .pill b { color: var(--text); font-weight: 600; }
 
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--muted);
-            flex: none;
-        }
-
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
         .dot.ok { background: var(--status-good); }
         .dot.warn { background: var(--status-warning); }
         .dot.bad { background: var(--status-critical); }
 
+        /* ---------- Security score card ---------- */
+        .score-card {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: var(--surface);
+            border: 1px solid var(--hairline);
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+        }
+
+        .score-left { display: flex; align-items: center; gap: 16px; }
+
+        .grade {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: 700;
+            color: #fff;
+            flex: none;
+        }
+
+        .grade.g-a, .grade.g-b { background: var(--status-good); }
+        .grade.g-c { background: var(--status-warning); color: #3a2c00; }
+        .grade.g-d { background: var(--status-serious); }
+        .grade.g-f { background: var(--status-critical); }
+
+        .score-num { font-size: 26px; font-weight: 650; }
+        .score-num span { font-size: 14px; color: var(--muted); font-weight: 400; }
+        .score-title { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+        .score-label { color: var(--text-2); font-size: 13px; }
+
+        .score-recs {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            flex: 1;
+            min-width: 260px;
+            display: grid;
+            gap: 5px;
+            font-size: 13px;
+            color: var(--text-2);
+        }
+
+        .score-recs li { display: flex; gap: 8px; align-items: baseline; }
+        .score-recs li::before { content: '\2192'; color: var(--accent); flex: none; }
+
         /* ---------- Stat tiles ---------- */
         .tiles {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
 
         .tile {
             background: var(--surface);
             border: 1px solid var(--hairline);
             border-radius: 10px;
-            padding: 14px 16px;
+            padding: 13px 16px;
         }
 
-        .tile .label {
-            color: var(--text-2);
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .tile .value {
-            font-size: 30px;
-            font-weight: 650;
-            margin-top: 2px;
-            color: var(--text);
-        }
-
-        .tile .note {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--text-2);
-            margin-top: 2px;
-        }
+        .tile .label { color: var(--text-2); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+        .tile .value { font-size: 28px; font-weight: 650; margin-top: 2px; }
+        .tile .note { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); margin-top: 2px; }
 
         .tile.hero { border-left: 3px solid var(--status-good); }
         .tile.hero.alerting { border-left-color: var(--status-critical); }
 
-        /* ---------- Panels ---------- */
-        .panel {
+        /* ---------- Panels (collapsible) ---------- */
+        details.panel {
             background: var(--surface);
             border: 1px solid var(--hairline);
             border-radius: 10px;
-            padding: 16px 18px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             scroll-margin-top: 64px;
         }
 
-        .panel > header {
+        details.panel > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 18px;
             display: flex;
             align-items: baseline;
             gap: 12px;
             flex-wrap: wrap;
-            margin-bottom: 4px;
+            user-select: none;
         }
 
-        .panel > header .desc { color: var(--muted); font-size: 12.5px; }
+        details.panel > summary::-webkit-details-marker { display: none; }
 
-        .tools {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-            margin: 10px 0;
+        details.panel > summary::before {
+            content: '\25B8';
+            color: var(--muted);
+            font-size: 12px;
+            transition: transform 0.15s;
+            align-self: center;
         }
 
-        .tools form {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-            margin: 0;
+        details.panel[open] > summary::before { transform: rotate(90deg); }
+        details.panel > summary:hover { background: var(--wash); border-radius: 10px; }
+        details.panel > summary .desc { color: var(--muted); font-size: 12.5px; }
+
+        .panel-body { padding: 0 18px 16px; }
+
+        .filter-bar {
+            background: var(--surface);
+            border: 1px solid var(--hairline);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 14px;
         }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+            align-items: end;
+        }
+
+        .filter-grid .actions { display: flex; gap: 8px; }
+
+        .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+        .tools form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 0; }
 
         /* ---------- Forms & buttons ---------- */
         input[type="text"], input[type="number"], select {
@@ -280,12 +329,7 @@
 
         button:hover, .button-link:hover { background: var(--wash); }
 
-        button.primary {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: var(--accent-ink);
-        }
-
+        button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
         button.primary:hover { filter: brightness(1.08); background: var(--accent); }
 
         button.danger { color: var(--status-critical); border-color: var(--status-critical); background: transparent; }
@@ -296,28 +340,12 @@
 
         button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        .filter-bar { margin-bottom: 16px; }
-
-        .filter-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 10px;
-            align-items: end;
-        }
-
-        .filter-grid .actions { display: flex; gap: 8px; }
-
         .wide-input { min-width: 320px; flex: 1; }
 
         /* ---------- Tables ---------- */
         .table-scroll { overflow-x: auto; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 4px;
-            font-size: 13px;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 13px; }
 
         th {
             text-align: left;
@@ -329,14 +357,8 @@
             white-space: nowrap;
         }
 
-        td {
-            padding: 7px 10px;
-            border-bottom: 1px solid var(--hairline);
-            vertical-align: middle;
-        }
-
+        td { padding: 7px 10px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
         tr:hover td { background: var(--wash); }
-
         td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
         .mono {
@@ -366,15 +388,7 @@
             white-space: nowrap;
         }
 
-        .badge::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--muted);
-            flex: none;
-        }
-
+        .badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
         .badge.low::before { background: var(--status-good); }
         .badge.medium::before { background: var(--status-warning); }
         .badge.high::before { background: var(--status-serious); }
@@ -396,12 +410,7 @@
         .actions form { margin: 0; }
         .actions button { padding: 3px 10px; font-size: 12px; }
 
-        /* ---------- Lists ---------- */
-        ul.plain {
-            list-style: none;
-            margin: 8px 0 0;
-            padding: 0;
-        }
+        ul.plain { list-style: none; margin: 8px 0 0; padding: 0; }
 
         ul.plain li {
             display: flex;
@@ -488,78 +497,114 @@
     <header class="topbar">
         <div class="brand">
             <strong>&#128682; Doors AI</strong>
-            <span>Predicting and preventing threats before they break through</span>
+            <span>Your personal security guard</span>
         </div>
         <nav class="jump">
-            <a href="#logins">Logins</a>
+            <a href="#logins">Sign-ins</a>
             <a href="#files">Files</a>
             <a href="#quarantine">Quarantine</a>
-            <a href="#endpoint">Endpoint</a>
+            <a href="#endpoint">System Changes</a>
             <a href="#network">Network</a>
-            <a href="#processes">Processes</a>
+            <a href="#processes">Programs</a>
         </nav>
         <div class="top-actions">
             <span id="updated-at"></span>
-            <button id="theme-toggle" title="Toggle light / dark theme">&#9681;</button>
+            <button id="theme-toggle" title="Switch between light and dark mode">&#9681;</button>
         </div>
     </header>
 
     <div class="wrap">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flashes">
+                {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
         <div class="status-row">
             <span class="pill">
                 <span class="dot {{ 'ok' if runtime_status.scanner_running else 'warn' }}"></span>
-                <b>Scanner</b>
+                <b>File Guard</b>
                 {% if runtime_status.scanner_running %}
-                    watching {{ runtime_status.scanner_watch_count }} folder(s)
+                    watching {{ runtime_status.scanner_watch_count }} folder{{ 's' if runtime_status.scanner_watch_count != 1 }}
                 {% elif runtime_status.scanner_thread_running %}
-                    running, no active folders
+                    on, but no folders to watch
                 {% else %}
-                    not running
+                    off
                 {% endif %}
             </span>
             <span class="pill">
                 <span class="dot {{ 'ok' if runtime_status.process_monitor_running else 'bad' }}"></span>
-                <b>Process Monitor</b>
-                {{ 'running' if runtime_status.process_monitor_running else 'not running' }}
+                <b>Program Guard</b>
+                {{ 'on' if runtime_status.process_monitor_running else 'off' }}
             </span>
             <span class="pill">
                 <span class="dot {{ 'ok' if runtime_status.endpoint_monitor_running else 'bad' }}"></span>
-                <b>Endpoint Monitor</b>
+                <b>System Guard</b>
                 {% if runtime_status.endpoint_monitor_running %}
                     {% if runtime_status.endpoint_baseline_established %}
-                        tracking {{ runtime_status.endpoint_tracked_entries }} entries
+                        watching {{ runtime_status.endpoint_tracked_entries }} settings
                     {% else %}
-                        establishing baseline
+                        learning your setup
                     {% endif %}
                 {% else %}
-                    not running
+                    off
                 {% endif %}
             </span>
             <span class="pill">
-                <b>Last file scan</b>
-                {{ runtime_status.last_scan_time or 'none yet' }}
-                {% if runtime_status.last_scan_result %}({{ runtime_status.last_scan_result }}){% endif %}
+                <span class="dot {{ 'warn' if runtime_status.login_import_requires_admin else ('ok' if runtime_status.login_import_available else '') }}"></span>
+                <b>Sign-in Guard</b>
+                {% if runtime_status.login_import_requires_admin %}
+                    needs administrator
+                {% elif runtime_status.login_import_available %}
+                    on
+                {% else %}
+                    starting
+                {% endif %}
             </span>
+            <span class="pill">
+                <b>Last file check</b>
+                {{ runtime_status.last_scan_time or 'none yet' }}
+            </span>
+        </div>
+
+        <div class="score-card">
+            <div class="score-left">
+                <div class="grade g-{{ posture.grade | lower }}">{{ posture.grade }}</div>
+                <div>
+                    <div class="score-title">Security Score {{ info_button('security_score') }}</div>
+                    <div class="score-num">{{ posture.score }}<span>/100</span></div>
+                    <div class="score-label">{{ posture.label }}</div>
+                </div>
+            </div>
+            <ul class="score-recs">
+                {% for rec in posture.recommendations %}
+                <li>{{ rec }}</li>
+                {% endfor %}
+            </ul>
         </div>
 
         <div class="tiles">
             <div class="tile hero {{ 'alerting' if runtime_status.active_alerts else '' }}">
-                <div class="label">Active Alerts</div>
+                <div class="label">Needs Attention</div>
                 <div class="value">{{ runtime_status.active_alerts }}</div>
                 <div class="note">
                     {% if runtime_status.active_alerts %}
-                        <span class="dot bad"></span> needs review
+                        <span class="dot bad"></span> items to review
                     {% else %}
                         <span class="dot ok"></span> all clear
                     {% endif %}
                 </div>
             </div>
             <div class="tile">
-                <div class="label">Login Records {{ info_button('login_records') }}</div>
+                <div class="label">Sign-ins Tracked {{ info_button('login_records') }}</div>
                 <div class="value">{{ summary.login_records }}</div>
             </div>
             <div class="tile">
-                <div class="label">Flagged IPs {{ info_button('flagged_ips') }}</div>
+                <div class="label">Suspicious Addresses {{ info_button('flagged_ips') }}</div>
                 <div class="value">{{ summary.flagged_ips }}</div>
             </div>
             <div class="tile">
@@ -567,521 +612,523 @@
                 <div class="value">{{ summary.file_alerts }}</div>
             </div>
             <div class="tile">
-                <div class="label">Suspicious Processes {{ info_button('suspicious_processes') }}</div>
+                <div class="label">Suspicious Programs {{ info_button('suspicious_processes') }}</div>
                 <div class="value">{{ summary.suspicious_processes }}</div>
             </div>
             <div class="tile">
-                <div class="label">Endpoint Alerts {{ info_button('endpoint_alerts') }}</div>
+                <div class="label">System Changes {{ info_button('endpoint_alerts') }}</div>
                 <div class="value">{{ summary.endpoint_alerts }}</div>
             </div>
         </div>
 
-        <form class="panel filter-bar" method="get" action="/">
+        <form class="filter-bar" method="get" action="/">
             <div class="filter-grid">
-                <label>IP
-                    <input type="text" name="ip" value="{{ filters.ip }}" placeholder="Filter IPs">
+                <label>Address
+                    <input type="text" name="ip" value="{{ filters.ip }}" placeholder="Search addresses">
                 </label>
-                <label>Filename
-                    <input type="text" name="filename" value="{{ filters.filename }}" placeholder="Filter files">
+                <label>File name
+                    <input type="text" name="filename" value="{{ filters.filename }}" placeholder="Search files">
                 </label>
-                <label>Process / Entry
-                    <input type="text" name="process" value="{{ filters.process }}" placeholder="Filter processes">
+                <label>Program
+                    <input type="text" name="process" value="{{ filters.process }}" placeholder="Search programs">
                 </label>
-                <label>Timestamp
-                    <input type="text" name="timestamp" value="{{ filters.timestamp }}" placeholder="YYYY-MM-DD or time">
+                <label>Date / time
+                    <input type="text" name="timestamp" value="{{ filters.timestamp }}" placeholder="e.g. 2026-07-15">
                 </label>
                 <label>Severity
                     <select name="severity">
-                        <option value="" {% if not filters.severity %}selected{% endif %}>Any severity</option>
+                        <option value="" {% if not filters.severity %}selected{% endif %}>All</option>
                         {% for severity in severity_options %}
                             <option value="{{ severity }}" {% if filters.severity == severity %}selected{% endif %}>{{ severity | capitalize }}</option>
                         {% endfor %}
                     </select>
                 </label>
                 <div class="actions">
-                    <button class="primary" type="submit">Apply Filters</button>
-                    <a class="button-link" href="/">Clear</a>
+                    <button class="primary" type="submit">Search</button>
+                    <a class="button-link" href="/">Reset</a>
                 </div>
             </div>
         </form>
 
-        <section class="panel" id="logins">
-            <header>
-                <h2>Login Activity</h2>
+        <details class="panel" id="logins" open>
+            <summary>
+                <h2>Sign-in Activity</h2>
                 <span class="desc">
-                    Isolation Forest anomaly detection over recorded login events.
+                    The AI compares every sign-in and points out the ones that look unusual.
                     {% if runtime_status.login_import_requires_admin %}
-                        Windows Security log import needs the app run as administrator.
+                        To watch real Windows sign-ins, run Doors AI as administrator.
                     {% elif runtime_status.login_import_available %}
-                        Windows events auto-import every 5 minutes ({{ runtime_status.login_import_total }} imported this session, last at {{ runtime_status.login_import_last_time or 'startup' }}).
+                        Watching Windows sign-ins automatically ({{ runtime_status.login_import_total }} imported this session).
                     {% endif %}
                 </span>
-            </header>
-
-            <div class="tools">
-                <form action="/login/add" method="post">
-                    <input type="text" name="ip" placeholder="IP address" required>
-                    <input type="number" name="login_attempts" min="1" value="1" title="Login attempts" style="width: 70px;">
-                    <select name="user_agent" title="User agent">
-                        <option value="Chrome">Chrome</option>
-                        <option value="Firefox">Firefox</option>
-                        <option value="Edge">Edge</option>
-                        <option value="Safari">Safari</option>
-                        <option value="Mobile App">Mobile App</option>
-                        <option value="Unknown">Unknown</option>
-                    </select>
-                    <input type="text" name="location" placeholder="Location label, optional">
-                    <button class="primary" type="submit">Record Login Event</button>
-                </form>
-
-                <form action="/login/import-windows" method="post">
-                    <button type="submit"
-                        title="{% if runtime_status.login_import_requires_admin %}Run Doors AI as administrator to read the Windows Security log{% else %}Pull real logon events (success + failure) from the Windows Security log{% endif %}">
-                        Import Windows Logins
-                    </button>
-                </form>
-
-                <form action="/login/simulate" method="post">
-                    <button type="submit">Generate Demo Login</button>
-                </form>
-
-                <form action="/logs/archive" method="post">
-                    <input type="hidden" name="log_type" value="login">
-                    <button type="submit">Archive</button>
-                </form>
-
-                <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all login logs?');">
-                    <input type="hidden" name="log_type" value="login">
-                    <button class="danger" type="submit">Clear</button>
-                </form>
-            </div>
-
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Severity</th>
-                        <th>IP {{ info_button('ip') }}</th>
-                        <th class="num">Attempts {{ info_button('login_attempts') }}</th>
-                        <th>Location {{ info_button('location') }}</th>
-                        <th>User Agent {{ info_button('user_agent') }}</th>
-                        <th class="num">Anomaly {{ info_button('anomaly') }}</th>
-                        <th class="num">Score {{ info_button('anomaly_score') }}</th>
-                        <th class="num">Abuse {{ info_button('abuse_score') }}</th>
-                        <th>Category {{ info_button('category') }}</th>
-                    </tr>
-                    {% for row in data %}
-                    <tr>
-                        <td>{{ row.timestamp }}</td>
-                        <td><span class="badge {{ row.severity }}">{{ row.severity }}</span></td>
-                        <td class="mono" title="{{ row.ip }}">{{ row.ip }}</td>
-                        <td class="num">{{ row.login_attempts }}</td>
-                        <td>{{ row.location }}</td>
-                        <td>{{ row.user_agent }}</td>
-                        <td class="num">{{ row.anomaly }}</td>
-                        <td class="num">{{ row.anomaly_score }}</td>
-                        <td class="num">{{ row.abuse_score }}</td>
-                        <td>{{ row.abuse_category }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="10" class="empty">No login rows match the current filters.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            {{ pagination('Login rows', 'login_page', pages.login) }}
-
-            <h3 style="margin-top: 18px;">Flagged IPs</h3>
-            <ul class="plain">
-                {% for alert in alerts %}
-                <li>
-                    <span>
-                        <span class="mono">{{ alert.ip }}</span>
-                        <span class="badge {{ alert.severity }}">{{ alert.severity }}</span>
-                        from {{ alert.location }} &mdash; {{ alert.abuse_category }}
-                    </span>
-                    <span class="actions">
-                        <form action="/ip/log-threat" method="post">
-                            <input type="hidden" name="ip" value="{{ alert.ip }}">
-                            <button type="submit" title="Record this IP in the local threat list">Add to Threat List</button>
-                        </form>
-                        <form action="/ip/block" method="post" onsubmit="return confirm('Block {{ alert.ip }} with a Windows Firewall rule? Requires running Doors AI as administrator.');">
-                            <input type="hidden" name="ip" value="{{ alert.ip }}">
-                            <button class="danger" type="submit" title="Add an inbound block rule to Windows Firewall">Block IP</button>
-                        </form>
-                    </span>
-                </li>
-                {% else %}
-                <li class="muted">No flagged IPs match the current filters.</li>
-                {% endfor %}
-            </ul>
-        </section>
-
-        <section class="panel" id="files">
-            <header>
-                <h2>File Scanning</h2>
-                <span class="desc">Hash database, digital signatures, archive inspection, and script analysis on watched folders.</span>
-            </header>
-
-            <div class="tools">
-                <form action="/scanner/folders/add" method="post">
-                    <input class="wide-input" type="text" name="folder" placeholder="Add folder to watch, e.g. C:\Users\rkinz\Documents" required>
-                    <label class="inline">
-                        <input type="checkbox" name="recursive_watch" {% if scan_config.recursive_watch %}checked{% endif %}>
-                        Include subfolders
-                    </label>
-                    <button class="primary" type="submit">Add Folder</button>
-                </form>
-            </div>
-
-            <ul class="plain">
-                {% for folder in scan_config.watch_folders %}
-                <li>
-                    <span class="mono" style="max-width: none;">{{ folder }}</span>
-                    <span class="actions">
-                        <form action="/scanner/scan-now" method="post">
-                            <input type="hidden" name="folder" value="{{ folder }}">
-                            <button type="submit">Scan Now</button>
-                        </form>
-                        <form action="/scanner/scan-now" method="post">
-                            <input type="hidden" name="folder" value="{{ folder }}">
-                            <input type="hidden" name="recursive" value="1">
-                            <button type="submit">Scan With Subfolders</button>
-                        </form>
-                        <form action="/scanner/folders/remove" method="post">
-                            <input type="hidden" name="folder" value="{{ folder }}">
-                            <button class="danger" type="submit">Remove</button>
-                        </form>
-                    </span>
-                </li>
-                {% else %}
-                <li class="muted">No scan folders configured.</li>
-                {% endfor %}
-            </ul>
-
-            <div class="tools">
-                <form action="/logs/archive" method="post">
-                    <input type="hidden" name="log_type" value="scanner">
-                    <button type="submit">Archive Scan Logs</button>
-                </form>
-
-                <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all file scan logs?');">
-                    <input type="hidden" name="log_type" value="scanner">
-                    <button class="danger" type="submit">Clear Scan Logs</button>
-                </form>
-            </div>
-
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Severity</th>
-                        <th>Filename</th>
-                        <th>SHA256</th>
-                        <th>Result</th>
-                        <th>Reason</th>
-                        <th>Timestamp</th>
-                        <th>Actions</th>
-                    </tr>
-                    {% for scan in scan_logs %}
-                    <tr>
-                        <td><span class="badge {{ scan.severity }}">{{ scan.severity }}</span></td>
-                        <td>{{ scan.filename }}</td>
-                        <td class="mono" title="{{ scan.sha256 }}">{{ scan.sha256 }}</td>
-                        <td>{{ scan.result }}</td>
-                        <td>{{ scan.reason }}</td>
-                        <td>{{ scan.timestamp }}</td>
-                        <td>
-                            <div class="actions">
-                                <form action="/file/trust" method="post">
-                                    <input type="hidden" name="sha256" value="{{ scan.sha256 }}">
-                                    <input type="hidden" name="filename" value="{{ scan.filename }}">
-                                    <button class="success" type="submit" title="Trust this file hash and hide its alerts">Mark Safe</button>
-                                </form>
-                                <form action="/file/confirm-malicious" method="post" onsubmit="return confirm('Add {{ scan.filename }} to the malware hash database and quarantine it if found?');">
-                                    <input type="hidden" name="sha256" value="{{ scan.sha256 }}">
-                                    <input type="hidden" name="filename" value="{{ scan.filename }}">
-                                    <button class="danger" type="submit" title="Learn this hash as malware and quarantine the file">Malicious</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="7" class="empty">No file alerts match the current filters.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            {{ pagination('File alerts', 'scan_page', pages.scan) }}
-        </section>
-
-        <section class="panel" id="quarantine">
-            <header>
-                <h2>Quarantine</h2>
-                <span class="desc">{{ quarantine_entries | length }} file(s) held. Restore returns a file to its original location; delete is permanent.</span>
-            </header>
-
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Filename</th>
-                        <th>Original Location</th>
-                        <th>SHA256</th>
-                        <th>Reason</th>
-                        <th>Quarantined At</th>
-                        <th class="num">Size</th>
-                        <th>Actions</th>
-                    </tr>
-                    {% for entry in quarantine_entries %}
-                    <tr>
-                        <td>{{ entry.filename }}</td>
-                        <td class="mono" title="{{ entry.original_path }}">{{ entry.original_path or 'Unknown' }}</td>
-                        <td class="mono" title="{{ entry.sha256 }}">{{ entry.sha256 or 'Unknown' }}</td>
-                        <td>{{ entry.reason or 'Unknown' }}</td>
-                        <td>{{ entry.quarantined_at or 'Unknown' }}</td>
-                        <td class="num">{{ '%.1f' | format(entry.size / 1024) }} KB</td>
-                        <td>
-                            <div class="actions">
-                                <form action="/quarantine/restore" method="post" onsubmit="return confirm('Restore {{ entry.filename }} to its original location? Only do this if you are sure the file is safe.');">
-                                    <input type="hidden" name="filename" value="{{ entry.filename }}">
-                                    <button type="submit">Restore</button>
-                                </form>
-                                <form action="/quarantine/delete" method="post" onsubmit="return confirm('Permanently delete {{ entry.filename }}? This cannot be undone.');">
-                                    <input type="hidden" name="filename" value="{{ entry.filename }}">
-                                    <button class="danger" type="submit">Delete</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="7" class="empty">Quarantine is empty.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            <h3 style="margin-top: 18px;">Malware Hash Database</h3>
-            <p class="muted">{{ hash_db_count }} known-malicious SHA256 hash(es). Matching files are quarantined automatically on detection.</p>
-            <div class="tools">
-                <form action="/hashdb/add" method="post">
-                    <input class="wide-input" type="text" name="sha256" placeholder="SHA256 hash (64 hex characters)" pattern="[0-9a-fA-F]{64}" required>
-                    <input type="text" name="description" placeholder="Description, optional">
-                    <button class="primary" type="submit">Add Malware Hash</button>
-                </form>
-            </div>
-        </section>
-
-        <section class="panel" id="endpoint">
-            <header>
-                <h2>Endpoint Persistence</h2>
-                <span class="desc">
-                    New autoruns, startup items, scheduled tasks, services, and ransomware signals since the baseline.
-                    {% if runtime_status.endpoint_baseline_established %}
-                        Tracking {{ runtime_status.endpoint_tracked_entries }} entries.
-                    {% else %}
-                        Baseline not yet established &mdash; the first scan records current state silently.
-                    {% endif %}
-                </span>
-            </header>
-
-            <div class="tools">
-                <form action="/endpoint/rebaseline" method="post" onsubmit="return confirm('Rebuild the persistence baseline from the current system state? Existing entries will no longer alert.');">
-                    <button type="submit">Rebuild Baseline</button>
-                </form>
-
-                <form action="/logs/archive" method="post">
-                    <input type="hidden" name="log_type" value="endpoint">
-                    <button type="submit">Archive</button>
-                </form>
-
-                <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all endpoint alerts?');">
-                    <input type="hidden" name="log_type" value="endpoint">
-                    <button class="danger" type="submit">Clear</button>
-                </form>
-            </div>
-
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Severity</th>
-                        <th>Category</th>
-                        <th>Name</th>
-                        <th>Detail</th>
-                        <th>Reason</th>
-                    </tr>
-                    {% for entry in endpoint_logs %}
-                    <tr>
-                        <td>{{ entry.timestamp }}</td>
-                        <td><span class="badge {{ entry.severity }}">{{ entry.severity }}</span></td>
-                        <td>{{ entry.category }}</td>
-                        <td>{{ entry.name }}</td>
-                        <td class="mono" title="{{ entry.detail }}">{{ entry.detail }}</td>
-                        <td>{{ entry.reason }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="6" class="empty">No endpoint alerts. New persistence entries will appear here.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            {{ pagination('Endpoint alerts', 'endpoint_page', pages.endpoint) }}
-        </section>
-
-        <section class="panel" id="network">
-            <header>
-                <h2>Network Visibility</h2>
-                <span class="desc">Passive local reads only &mdash; ARP cache for nearby devices and this machine's own listening sockets. Nothing is scanned or transmitted.</span>
-            </header>
-
-            {% if network.error %}
-                <p class="muted">Snapshot issue: {{ network.error }}</p>
-            {% endif %}
-
-            <h3>Listening Ports (attack surface)</h3>
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Severity</th>
-                        <th class="num">Port</th>
-                        <th>Bound To</th>
-                        <th>Exposure</th>
-                        <th>Service</th>
-                        <th>Process</th>
-                        <th class="num">PID</th>
-                    </tr>
-                    {% for port in network.ports %}
-                    <tr>
-                        <td><span class="badge {{ port.severity }}">{{ port.severity }}</span></td>
-                        <td class="num">{{ port.port }}</td>
-                        <td class="mono">{{ port.address }}</td>
-                        <td>{{ port.binding }}</td>
-                        <td>{{ port.service or '&mdash;' | safe }}</td>
-                        <td>{{ port.process or 'unknown' }}</td>
-                        <td class="num">{{ port.pid }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="7" class="empty">No listening sockets found.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            <h3 style="margin-top: 18px;">Discovered Devices (ARP cache)</h3>
-            <p class="muted">Devices this machine has recently exchanged traffic with on the local network.</p>
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>IP Address</th>
-                        <th>MAC Address</th>
-                        <th>Entry Type</th>
-                    </tr>
-                    {% for device in network.devices %}
-                    <tr>
-                        <td class="mono">{{ device.ip }}</td>
-                        <td class="mono">{{ device.mac }}</td>
-                        <td>{{ device.type }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="3" class="empty">No devices in the ARP cache.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </section>
-
-        <section class="panel" id="processes">
-            <header>
-                <h2>Process Monitoring</h2>
-                <span class="desc">Attack tools, hostile command lines, masquerading system binaries, and suspicious parent-child pairs.</span>
-            </header>
-
-            <div class="tools">
-                <form action="/logs/archive" method="post">
-                    <input type="hidden" name="log_type" value="process">
-                    <button type="submit">Archive</button>
-                </form>
-
-                <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all process logs?');">
-                    <input type="hidden" name="log_type" value="process">
-                    <button class="danger" type="submit">Clear</button>
-                </form>
-            </div>
-
-            <div class="table-scroll">
-                <table>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Severity</th>
-                        <th class="num">PID</th>
-                        <th>Name</th>
-                        <th>Command / Path</th>
-                        <th>Match</th>
-                        <th>Reason</th>
-                        <th>Actions</th>
-                    </tr>
-                    {% for proc in proc_logs %}
-                    <tr>
-                        <td>{{ proc.timestamp }}</td>
-                        <td><span class="badge {{ proc.severity }}">{{ proc.severity }}</span></td>
-                        <td class="num">{{ proc.pid }}</td>
-                        <td>{{ proc.name }}</td>
-                        <td class="mono" title="{{ proc.cmdline if proc.cmdline is defined else proc.path }}">
-                            {{ proc.cmdline if proc.cmdline is defined else proc.path if proc.path is defined else 'N/A' }}
-                        </td>
-                        <td>
-                            {% if proc.reason and 'Matched keyword:' in proc.reason %}
-                                <span class="keyword">{{ proc.reason.replace('Matched keyword:', '').strip() }}</span>
-                            {% else %}
-                                <span class="muted">&mdash;</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ proc.reason }}</td>
-                        <td>
-                            <div class="actions">
-                                <form action="/whitelist/add" method="post">
-                                    <input type="hidden" name="process_name" value="{{ proc.name }}">
-                                    <button class="success" type="submit">Whitelist</button>
-                                </form>
-                                <form action="/process/terminate" method="post" onsubmit="return confirm('Terminate PID {{ proc.pid }}? Only do this if you are sure.');">
-                                    <input type="hidden" name="pid" value="{{ proc.pid }}">
-                                    <button class="danger" type="submit">Terminate</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="8" class="empty">No suspicious process logs match the current filters.</td></tr>
-                    {% endfor %}
-                </table>
-            </div>
-
-            {{ pagination('Process alerts', 'process_page', pages.process) }}
-
-            <h3 style="margin-top: 18px;">Process Whitelist</h3>
-            <div class="tools">
-                <form action="/whitelist/add" method="post">
-                    <input type="text" name="process_name" placeholder="Example: code.exe" required>
-                    <button class="success" type="submit">Add to Whitelist</button>
-                </form>
-            </div>
-            <ul class="plain">
-                {% for entry in whitelist %}
-                <li>
-                    <span class="mono">{{ entry }}</span>
-                    <form action="/whitelist/remove" method="post">
-                        <input type="hidden" name="process_name" value="{{ entry }}">
-                        <button class="danger" type="submit">Remove</button>
+            </summary>
+            <div class="panel-body">
+                <div class="tools">
+                    <form action="/login/add" method="post">
+                        <input type="text" name="ip" placeholder="Address (IP)" required>
+                        <input type="number" name="login_attempts" min="1" value="1" title="Number of attempts" style="width: 70px;">
+                        <select name="user_agent" title="Sign-in type">
+                            <option value="Chrome">Chrome</option>
+                            <option value="Firefox">Firefox</option>
+                            <option value="Edge">Edge</option>
+                            <option value="Safari">Safari</option>
+                            <option value="Mobile App">Mobile App</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+                        <input type="text" name="location" placeholder="Location (optional)">
+                        <button class="primary" type="submit">Add Manually</button>
                     </form>
-                </li>
-                {% else %}
-                <li class="muted">No whitelisted processes.</li>
-                {% endfor %}
-            </ul>
-        </section>
+
+                    <form action="/login/import-windows" method="post">
+                        <button type="submit"
+                            title="{% if runtime_status.login_import_requires_admin %}Run Doors AI as administrator to read Windows sign-in history{% else %}Pull recent sign-ins (including failed attempts) from Windows{% endif %}">
+                            Import Windows Sign-ins
+                        </button>
+                    </form>
+
+                    <form action="/login/simulate" method="post">
+                        <button type="submit" title="Adds a fake sign-in so you can see how detection works">Add Test Sign-in</button>
+                    </form>
+
+                    <form action="/logs/archive" method="post">
+                        <input type="hidden" name="log_type" value="login">
+                        <button type="submit" title="Saves the current list to the archives folder and clears it here">Archive</button>
+                    </form>
+
+                    <form action="/logs/clear" method="post" onsubmit="return confirm('Clear the whole sign-in list?');">
+                        <input type="hidden" name="log_type" value="login">
+                        <button class="danger" type="submit">Clear</button>
+                    </form>
+                </div>
+
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>When</th>
+                            <th>Severity</th>
+                            <th>Address {{ info_button('ip') }}</th>
+                            <th class="num">Attempts {{ info_button('login_attempts') }}</th>
+                            <th>From {{ info_button('location') }}</th>
+                            <th>Type {{ info_button('user_agent') }}</th>
+                            <th>AI Verdict {{ info_button('anomaly') }}</th>
+                            <th class="num">AI Score {{ info_button('anomaly_score') }}</th>
+                            <th class="num">Threat Score {{ info_button('abuse_score') }}</th>
+                            <th>Why {{ info_button('category') }}</th>
+                        </tr>
+                        {% for row in data %}
+                        <tr>
+                            <td>{{ row.timestamp }}</td>
+                            <td><span class="badge {{ row.severity }}">{{ row.severity }}</span></td>
+                            <td class="mono" title="{{ row.ip }}">{{ row.ip }}</td>
+                            <td class="num">{{ row.login_attempts }}</td>
+                            <td>{{ row.location }}</td>
+                            <td>{{ row.user_agent }}</td>
+                            <td>{{ 'Unusual' if row.anomaly == -1 else 'Normal' }}</td>
+                            <td class="num">{{ row.anomaly_score }}</td>
+                            <td class="num">{{ row.abuse_score }}</td>
+                            <td>{{ row.abuse_category }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="10" class="empty">No sign-ins recorded yet. Use "Import Windows Sign-ins" (as administrator) or add a test sign-in to see how it works.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                {{ pagination('Sign-ins', 'login_page', pages.login) }}
+
+                <h3>Suspicious Addresses</h3>
+                <ul class="plain">
+                    {% for alert in alerts %}
+                    <li>
+                        <span>
+                            <span class="mono">{{ alert.ip }}</span>
+                            <span class="badge {{ alert.severity }}">{{ alert.severity }}</span>
+                            from {{ alert.location }} &mdash; {{ alert.abuse_category }}
+                        </span>
+                        <span class="actions">
+                            <form action="/ip/log-threat" method="post">
+                                <input type="hidden" name="ip" value="{{ alert.ip }}">
+                                <button type="submit" title="Remember this address as dangerous">Add to Threat List</button>
+                            </form>
+                            <form action="/ip/block" method="post" onsubmit="return confirm('Block {{ alert.ip }} in Windows Firewall? Doors AI must be running as administrator for this to work.');">
+                                <input type="hidden" name="ip" value="{{ alert.ip }}">
+                                <button class="danger" type="submit" title="Tell Windows Firewall to block this address">Block</button>
+                            </form>
+                        </span>
+                    </li>
+                    {% else %}
+                    <li class="muted">No suspicious addresses right now.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </details>
+
+        <details class="panel" id="files" open>
+            <summary>
+                <h2>File Protection</h2>
+                <span class="desc">New files in watched folders are checked against known malware, fake documents, dangerous scripts, and unsigned programs.</span>
+            </summary>
+            <div class="panel-body">
+                <div class="tools">
+                    <form action="/scanner/folders/add" method="post">
+                        <input class="wide-input" type="text" name="folder" placeholder="Add a folder to protect, e.g. C:\Users\rkinz\Documents" required>
+                        <label class="inline">
+                            <input type="checkbox" name="recursive_watch" {% if scan_config.recursive_watch %}checked{% endif %}>
+                            Include subfolders
+                        </label>
+                        <button class="primary" type="submit">Protect Folder</button>
+                    </form>
+                </div>
+
+                <ul class="plain">
+                    {% for folder in scan_config.watch_folders %}
+                    <li>
+                        <span class="mono" style="max-width: none;">{{ folder }}</span>
+                        <span class="actions">
+                            <form action="/scanner/scan-now" method="post">
+                                <input type="hidden" name="folder" value="{{ folder }}">
+                                <button type="submit">Check Now</button>
+                            </form>
+                            <form action="/scanner/scan-now" method="post">
+                                <input type="hidden" name="folder" value="{{ folder }}">
+                                <input type="hidden" name="recursive" value="1">
+                                <button type="submit">Check + Subfolders</button>
+                            </form>
+                            <form action="/scanner/folders/remove" method="post">
+                                <input type="hidden" name="folder" value="{{ folder }}">
+                                <button class="danger" type="submit">Stop Watching</button>
+                            </form>
+                        </span>
+                    </li>
+                    {% else %}
+                    <li class="muted">No folders are being protected yet. Add one above.</li>
+                    {% endfor %}
+                </ul>
+
+                <div class="tools">
+                    <form action="/logs/archive" method="post">
+                        <input type="hidden" name="log_type" value="scanner">
+                        <button type="submit">Archive</button>
+                    </form>
+
+                    <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all file alerts?');">
+                        <input type="hidden" name="log_type" value="scanner">
+                        <button class="danger" type="submit">Clear</button>
+                    </form>
+                </div>
+
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>Severity</th>
+                            <th>File</th>
+                            <th>Fingerprint {{ info_button('file_alerts') }}</th>
+                            <th>Verdict</th>
+                            <th>Why</th>
+                            <th>When</th>
+                            <th>Your Call</th>
+                        </tr>
+                        {% for scan in scan_logs %}
+                        <tr>
+                            <td><span class="badge {{ scan.severity }}">{{ scan.severity }}</span></td>
+                            <td>{{ scan.filename }}</td>
+                            <td class="mono" title="{{ scan.sha256 }}">{{ scan.sha256 }}</td>
+                            <td>{{ scan.result }}</td>
+                            <td>{{ scan.reason }}</td>
+                            <td>{{ scan.timestamp }}</td>
+                            <td>
+                                <div class="actions">
+                                    <form action="/file/trust" method="post">
+                                        <input type="hidden" name="sha256" value="{{ scan.sha256 }}">
+                                        <input type="hidden" name="filename" value="{{ scan.filename }}">
+                                        <button class="success" type="submit" title="I know this file - stop flagging it">It's Safe</button>
+                                    </form>
+                                    <form action="/file/confirm-malicious" method="post" onsubmit="return confirm('Treat {{ scan.filename }} as malware? Doors AI will remember its fingerprint and quarantine it if found.');">
+                                        <input type="hidden" name="sha256" value="{{ scan.sha256 }}">
+                                        <input type="hidden" name="filename" value="{{ scan.filename }}">
+                                        <button class="danger" type="submit" title="Treat as malware: remember the fingerprint and quarantine the file">It's Malware</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="empty">No file alerts &mdash; everything checked out clean.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                {{ pagination('File alerts', 'scan_page', pages.scan) }}
+            </div>
+        </details>
+
+        <details class="panel" id="quarantine" open>
+            <summary>
+                <h2>Quarantine</h2>
+                <span class="desc">{{ quarantine_entries | length }} file{{ 's' if quarantine_entries | length != 1 }} locked away where {{ 'they' if quarantine_entries | length != 1 else 'it' }} can't do harm.</span>
+            </summary>
+            <div class="panel-body">
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>File</th>
+                            <th>Came From</th>
+                            <th>Fingerprint</th>
+                            <th>Why It's Here</th>
+                            <th>When</th>
+                            <th class="num">Size</th>
+                            <th>Your Call</th>
+                        </tr>
+                        {% for entry in quarantine_entries %}
+                        <tr>
+                            <td>{{ entry.filename }}</td>
+                            <td class="mono" title="{{ entry.original_path }}">{{ entry.original_path or 'Unknown' }}</td>
+                            <td class="mono" title="{{ entry.sha256 }}">{{ entry.sha256 or 'Unknown' }}</td>
+                            <td>{{ entry.reason or 'Unknown' }}</td>
+                            <td>{{ entry.quarantined_at or 'Unknown' }}</td>
+                            <td class="num">{{ '%.1f' | format(entry.size / 1024) }} KB</td>
+                            <td>
+                                <div class="actions">
+                                    <form action="/quarantine/restore" method="post" onsubmit="return confirm('Put {{ entry.filename }} back where it came from? Only do this if you are sure it is safe.');">
+                                        <input type="hidden" name="filename" value="{{ entry.filename }}">
+                                        <button type="submit">Put Back</button>
+                                    </form>
+                                    <form action="/quarantine/delete" method="post" onsubmit="return confirm('Permanently delete {{ entry.filename }}? This cannot be undone.');">
+                                        <input type="hidden" name="filename" value="{{ entry.filename }}">
+                                        <button class="danger" type="submit">Delete Forever</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="empty">Quarantine is empty &mdash; nothing dangerous has been caught.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <h3>Known Malware Fingerprints</h3>
+                <p class="muted">{{ hash_db_count }} fingerprint{{ 's' if hash_db_count != 1 }} on file. Every new file is compared against these &mdash; a match is quarantined instantly. A fingerprint (SHA256) uniquely identifies a file's exact contents.</p>
+                <div class="tools">
+                    <form action="/hashdb/add" method="post">
+                        <input class="wide-input" type="text" name="sha256" placeholder="Paste a SHA256 fingerprint (64 characters)" pattern="[0-9a-fA-F]{64}" required>
+                        <input type="text" name="description" placeholder="Note (optional)">
+                        <button class="primary" type="submit">Add Fingerprint</button>
+                    </form>
+                </div>
+            </div>
+        </details>
+
+        <details class="panel" id="endpoint" open>
+            <summary>
+                <h2>Startup &amp; System Changes</h2>
+                <span class="desc">
+                    Watches what runs automatically on your PC &mdash; startup programs, scheduled tasks, and services &mdash; plus ransomware tripwires.
+                    {% if runtime_status.endpoint_baseline_established %}
+                        Watching {{ runtime_status.endpoint_tracked_entries }} settings; only new changes are reported.
+                    {% else %}
+                        Learning your current setup first &mdash; nothing will alert until that's done.
+                    {% endif %}
+                </span>
+            </summary>
+            <div class="panel-body">
+                <div class="tools">
+                    <form action="/endpoint/rebaseline" method="post" onsubmit="return confirm('Mark everything currently on your PC as trusted? Only changes made after this point will raise alerts.');">
+                        <button type="submit" title="Everything currently installed is treated as normal; only future changes alert">Trust Current Setup</button>
+                    </form>
+
+                    <form action="/logs/archive" method="post">
+                        <input type="hidden" name="log_type" value="endpoint">
+                        <button type="submit">Archive</button>
+                    </form>
+
+                    <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all system change alerts?');">
+                        <input type="hidden" name="log_type" value="endpoint">
+                        <button class="danger" type="submit">Clear</button>
+                    </form>
+                </div>
+
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>When</th>
+                            <th>Severity</th>
+                            <th>Kind</th>
+                            <th>What Changed</th>
+                            <th>Details</th>
+                            <th>Why It Matters</th>
+                        </tr>
+                        {% for entry in endpoint_logs %}
+                        <tr>
+                            <td>{{ entry.timestamp }}</td>
+                            <td><span class="badge {{ entry.severity }}">{{ entry.severity }}</span></td>
+                            <td>{{ {'registry': 'Startup entry', 'startup': 'Startup folder', 'task': 'Scheduled task', 'service': 'Service', 'ransomware': 'Ransomware signal'}.get(entry.category, entry.category) }}</td>
+                            <td>{{ entry.name }}</td>
+                            <td class="mono" title="{{ entry.detail }}">{{ entry.detail }}</td>
+                            <td>{{ entry.reason }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="empty">No changes detected &mdash; your startup programs, tasks, and services all match the trusted setup.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                {{ pagination('Changes', 'endpoint_page', pages.endpoint) }}
+            </div>
+        </details>
+
+        <details class="panel" id="network" open>
+            <summary>
+                <h2>Your Network</h2>
+                <span class="desc">The doors into this PC and the devices around it. Everything here is read locally &mdash; nothing is scanned or sent out.</span>
+            </summary>
+            <div class="panel-body">
+                {% if network.error %}
+                    <p class="muted">Couldn't get a full picture: {{ network.error }}</p>
+                {% endif %}
+
+                <h3>Open Doors (Listening Ports)</h3>
+                <p class="muted">Programs that accept incoming connections. "Reachable from your network" means other devices could knock on that door.</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>Severity</th>
+                            <th class="num">Port</th>
+                            <th>Who Can Reach It</th>
+                            <th>What It's For</th>
+                            <th>Program</th>
+                        </tr>
+                        {% for port in network.ports %}
+                        <tr>
+                            <td><span class="badge {{ port.severity }}">{{ port.severity }}</span></td>
+                            <td class="num">{{ port.port }}</td>
+                            <td>
+                                {% if port.binding == 'all interfaces' %}
+                                    Anyone on your network
+                                {% elif port.binding == 'LAN interface' %}
+                                    Devices on your network
+                                {% else %}
+                                    Only this PC
+                                {% endif %}
+                            </td>
+                            <td>{{ port.service or '-' }}</td>
+                            <td>{{ port.process or 'unknown' }}{% if port.pid %} <span class="muted">(PID {{ port.pid }})</span>{% endif %}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="empty">No open doors found.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <h3>Devices Seen Nearby</h3>
+                <p class="muted">Devices this PC has recently talked to on your home network (from the system's address cache).</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>Address</th>
+                            <th>Hardware ID (MAC)</th>
+                            <th>Connection</th>
+                        </tr>
+                        {% for device in network.devices %}
+                        <tr>
+                            <td class="mono">{{ device.ip }}</td>
+                            <td class="mono">{{ device.mac }}</td>
+                            <td>{{ 'recently active' if device.type == 'dynamic' else device.type }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="empty">No devices seen recently.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </details>
+
+        <details class="panel" id="processes" open>
+            <summary>
+                <h2>Program Activity</h2>
+                <span class="desc">Watches running programs for hacking tools, dangerous commands, and suspicious behavior like a document opening a command window.</span>
+            </summary>
+            <div class="panel-body">
+                <div class="tools">
+                    <form action="/logs/archive" method="post">
+                        <input type="hidden" name="log_type" value="process">
+                        <button type="submit">Archive</button>
+                    </form>
+
+                    <form action="/logs/clear" method="post" onsubmit="return confirm('Clear all program alerts?');">
+                        <input type="hidden" name="log_type" value="process">
+                        <button class="danger" type="submit">Clear</button>
+                    </form>
+                </div>
+
+                <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>When</th>
+                            <th>Severity</th>
+                            <th>Program</th>
+                            <th>Location / Command</th>
+                            <th>Why It Was Flagged</th>
+                            <th>Your Call</th>
+                        </tr>
+                        {% for proc in proc_logs %}
+                        <tr>
+                            <td>{{ proc.timestamp }}</td>
+                            <td><span class="badge {{ proc.severity }}">{{ proc.severity }}</span></td>
+                            <td>{{ proc.name }} <span class="muted">(PID {{ proc.pid }})</span></td>
+                            <td class="mono" title="{{ proc.cmdline if proc.cmdline is defined else proc.path }}">
+                                {{ proc.cmdline if proc.cmdline is defined else proc.path if proc.path is defined else 'N/A' }}
+                            </td>
+                            <td>{{ proc.reason }}</td>
+                            <td>
+                                <div class="actions">
+                                    <form action="/whitelist/add" method="post">
+                                        <input type="hidden" name="process_name" value="{{ proc.name }}">
+                                        <button class="success" type="submit" title="I know this program - stop flagging it">Trust It</button>
+                                    </form>
+                                    <form action="/process/terminate" method="post" onsubmit="return confirm('Force {{ proc.name }} (PID {{ proc.pid }}) to stop right now? Only do this if you are sure.');">
+                                        <input type="hidden" name="pid" value="{{ proc.pid }}">
+                                        <button class="danger" type="submit">Stop It</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="empty">No suspicious programs &mdash; everything running looks normal.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                {{ pagination('Program alerts', 'process_page', pages.process) }}
+
+                <h3>Trusted Programs</h3>
+                <p class="muted">Programs you've told Doors AI to stop flagging.</p>
+                <div class="tools">
+                    <form action="/whitelist/add" method="post">
+                        <input type="text" name="process_name" placeholder="Program name, e.g. code.exe" required>
+                        <button class="success" type="submit">Trust Program</button>
+                    </form>
+                </div>
+                <ul class="plain">
+                    {% for entry in whitelist %}
+                    <li>
+                        <span class="mono">{{ entry }}</span>
+                        <form action="/whitelist/remove" method="post">
+                            <input type="hidden" name="process_name" value="{{ entry }}">
+                            <button class="danger" type="submit">Stop Trusting</button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="muted">No trusted programs yet.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </details>
     </div>
 </div>
 
 <script>
 (function () {
-    var KEY = 'doors-theme';
-    var stored = localStorage.getItem(KEY);
+    var THEME_KEY = 'doors-theme';
+    var stored = localStorage.getItem(THEME_KEY);
     if (stored) document.documentElement.dataset.theme = stored;
 
     document.addEventListener('click', function (e) {
@@ -1091,8 +1138,24 @@
             (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
-        localStorage.setItem(KEY, next);
+        localStorage.setItem(THEME_KEY, next);
     });
+
+    // Remember which sections are open or collapsed, across refreshes.
+    document.addEventListener('toggle', function (e) {
+        var el = e.target;
+        if (el.tagName === 'DETAILS' && el.id) {
+            localStorage.setItem('doors-open-' + el.id, el.open ? '1' : '0');
+        }
+    }, true);
+
+    function restoreOpenState(root) {
+        root.querySelectorAll('details[id]').forEach(function (d) {
+            var v = localStorage.getItem('doors-open-' + d.id);
+            if (v !== null) d.open = v === '1';
+        });
+    }
+    restoreOpenState(document);
 
     function stampUpdated() {
         var el = document.getElementById('updated-at');
@@ -1115,6 +1178,7 @@
                 var current = document.getElementById('app');
                 if (fresh && current) {
                     current.innerHTML = fresh.innerHTML;
+                    restoreOpenState(document);
                     stampUpdated();
                 }
             })
