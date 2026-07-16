@@ -47,6 +47,7 @@ from monitor.login_events import (
     start_login_import_thread,
 )
 from monitor.network_monitor import get_network_snapshot
+from monitor.mitre import tag_technique
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -981,6 +982,8 @@ def home():
         df_scan = df_scan[contains_text(df_scan["timestamp"], filters["timestamp"])]
         df_scan = apply_severity_filter(df_scan, filters["severity"])
         scan_records = df_scan.sort_values(by="timestamp", ascending=False).to_dict(orient="records")
+        for entry in scan_records:
+            entry["mitre"] = tag_technique(entry.get("reason"), entry.get("result"))
     except Exception as e:
         print(f"[ERROR] Failed to load scanner logs: {e}")
 
@@ -998,6 +1001,7 @@ def home():
         proc_records = df_proc.to_dict(orient="records")
         for entry in proc_records:
             entry["cmdline"] = entry.get("path") or entry.get("cmdline") or ""
+            entry["mitre"] = tag_technique(entry.get("reason"), entry.get("name"), entry.get("path"))
     except Exception as e:
         print(f"[ERROR] Failed to load process logs: {e}")
 
@@ -1014,6 +1018,8 @@ def home():
         df_endpoint = df_endpoint[contains_text(df_endpoint["timestamp"], filters["timestamp"])]
         df_endpoint = apply_severity_filter(df_endpoint, filters["severity"])
         endpoint_records = df_endpoint.to_dict(orient="records")
+        for entry in endpoint_records:
+            entry["mitre"] = tag_technique(entry.get("reason"), entry.get("category"), entry.get("detail"))
     except Exception as e:
         print(f"[ERROR] Failed to load endpoint logs: {e}")
 

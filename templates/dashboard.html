@@ -406,6 +406,20 @@
             color: var(--text-2);
         }
 
+        .mitre {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: help;
+        }
+
         .actions { display: flex; gap: 6px; flex-wrap: wrap; }
         .actions form { margin: 0; }
         .actions button { padding: 3px 10px; font-size: 12px; }
@@ -835,7 +849,7 @@
                             <td>{{ scan.filename }}</td>
                             <td class="mono" title="{{ scan.sha256 }}">{{ scan.sha256 }}</td>
                             <td>{{ scan.result }}</td>
-                            <td>{{ scan.reason }}</td>
+                            <td>{{ scan.reason }}{% if scan.mitre %}<span class="mitre" title="MITRE ATT&CK: {{ scan.mitre.name }}">{{ scan.mitre.id }}</span>{% endif %}</td>
                             <td>{{ scan.timestamp }}</td>
                             <td>
                                 <div class="actions">
@@ -881,7 +895,7 @@
                         </tr>
                         {% for entry in quarantine_entries %}
                         <tr>
-                            <td>{{ entry.filename }}</td>
+                            <td>{{ entry.original_name or entry.filename }}{% if entry.neutralized %} <span class="badge low" title="The file's bytes are scrambled so it cannot run from here">neutralized</span>{% endif %}</td>
                             <td class="mono" title="{{ entry.original_path }}">{{ entry.original_path or 'Unknown' }}</td>
                             <td class="mono" title="{{ entry.sha256 }}">{{ entry.sha256 or 'Unknown' }}</td>
                             <td>{{ entry.reason or 'Unknown' }}</td>
@@ -1016,7 +1030,7 @@
                             <td>{{ {'registry': 'Startup entry', 'startup': 'Startup folder', 'task': 'Scheduled task', 'service': 'Service', 'ransomware': 'Ransomware signal'}.get(entry.category, entry.category) }}</td>
                             <td>{{ entry.name }}</td>
                             <td class="mono" title="{{ entry.detail }}">{{ entry.detail }}</td>
-                            <td>{{ entry.reason }}</td>
+                            <td>{{ entry.reason }}{% if entry.mitre %}<span class="mitre" title="MITRE ATT&CK: {{ entry.mitre.name }}">{{ entry.mitre.id }}</span>{% endif %}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="6" class="empty">No changes detected &mdash; your startup programs, tasks, and services all match the trusted setup.</td></tr>
@@ -1141,7 +1155,7 @@
                             <td class="mono" title="{{ proc.cmdline if proc.cmdline is defined else proc.path }}">
                                 {{ proc.cmdline if proc.cmdline is defined else proc.path if proc.path is defined else 'N/A' }}
                             </td>
-                            <td>{{ proc.reason }}</td>
+                            <td>{{ proc.reason }}{% if proc.mitre %}<span class="mitre" title="MITRE ATT&CK: {{ proc.mitre.name }}">{{ proc.mitre.id }}</span>{% endif %}</td>
                             <td>
                                 <div class="actions">
                                     {% if proc.path %}
