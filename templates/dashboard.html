@@ -866,6 +866,11 @@
                                         <input type="hidden" name="filename" value="{{ scan.filename }}">
                                         <button class="danger" type="submit" title="Treat as malware: remember the fingerprint and quarantine the file">It's Malware</button>
                                     </form>
+                                    <form action="/vt/check" method="post">
+                                        <input type="hidden" name="sha256" value="{{ scan.sha256 }}">
+                                        <input type="hidden" name="filename" value="{{ scan.filename }}">
+                                        <button type="submit" title="Ask VirusTotal how many antivirus engines flag this fingerprint (sends the fingerprint only, never the file)">Check VirusTotal</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -1047,6 +1052,20 @@
                             placeholder="{{ 'Auth-Key saved - paste again to replace' if feeds.bazaar_has_key else 'Paste your abuse.ch Auth-Key' }}"
                             autocomplete="off">
                         <button class="primary" type="submit">Update Fingerprints</button>
+                    </form>
+                </div>
+
+                <h3 style="margin-top: 18px;">VirusTotal Lookups</h3>
+                <p class="muted">
+                    With a free VirusTotal API key you can check any flagged file against ~70 antivirus engines using the "Check VirusTotal" button on file alerts. Only the fingerprint is sent &mdash; never the file itself.
+                    {% if feeds.vt_has_key %}A key is saved.{% else %}Get a free key at <span class="mono" style="max-width:none;">virustotal.com</span>.{% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/vt/save-key" method="post">
+                        <input class="wide-input" type="text" name="api_key"
+                            placeholder="{{ 'Key saved - paste again to replace' if feeds.vt_has_key else 'Paste your VirusTotal API key' }}"
+                            autocomplete="off">
+                        <button class="primary" type="submit">Save Key</button>
                     </form>
                 </div>
             </div>
