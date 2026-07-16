@@ -385,23 +385,49 @@ def extract_features(filepath):
     ]
 
 
+QUARANTINE_XOR_KEY = 0x5A
+QUARANTINE_STORED_SUFFIX = ".quarantined"
+
+
+def _xor_copy(src, dst, key):
+    """Copy src to dst byte-flipping every byte, so the result can't run."""
+    table = bytes(b ^ key for b in range(256))
+    with open(src, "rb") as fin, open(dst, "wb") as fout:
+        for chunk in iter(lambda: fin.read(1024 * 1024), b""):
+            fout.write(chunk.translate(table))
+
+
 def quarantine_file(path, sha256=None, reason=""):
     QUARANTINE_FOLDER.mkdir(parents=True, exist_ok=True)
     source = Path(path)
-    target = QUARANTINE_FOLDER / source.name
 
+    # Store neutralized: the real bytes are XOR-scrambled and the name gets a
+    # harmless suffix, so nothing in the quarantine folder can execute.
+    stored_name = source.name + QUARANTINE_STORED_SUFFIX
+    target = QUARANTINE_FOLDER / stored_name
     if target.exists():
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        target = QUARANTINE_FOLDER / f"{source.stem}_{stamp}{source.suffix}"
+        target = QUARANTINE_FOLDER / f"{source.stem}_{stamp}{source.suffix}{QUARANTINE_STORED_SUFFIX}"
 
     original_path = str(source.resolve())
-    shutil.move(str(source), str(target))
+    try:
+        _xor_copy(source, target, QUARANTINE_XOR_KEY)
+        source.unlink()
+    except Exception as e:
+        print(f"[SCANNER] Could not neutralize {source.name}, falling back to move: {e}")
+        if target.exists():
+            target.unlink(missing_ok=True)
+        target = QUARANTINE_FOLDER / source.name
+        shutil.move(str(source), str(target))
 
     metadata = {
         "original_path": original_path,
+        "original_name": source.name,
         "sha256": sha256 or "",
         "reason": reason,
         "quarantined_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "neutralized": target.name.endswith(QUARANTINE_STORED_SUFFIX),
+        "xor_key": QUARANTINE_XOR_KEY,
     }
     meta_path = target.with_name(target.name + QUARANTINE_META_SUFFIX)
     try:
@@ -410,7 +436,7 @@ def quarantine_file(path, sha256=None, reason=""):
     except Exception as e:
         print(f"[SCANNER] Could not write quarantine metadata for {target.name}: {e}")
 
-    print(f"[SCANNER] Quarantined {source.name}")
+    print(f"[SCANNER] Quarantined and neutralized {source.name}")
     return target
 
 
@@ -449,11 +475,13 @@ def list_quarantined_files():
         metadata = _read_quarantine_metadata(target)
         entries.append({
             "filename": target.name,
+            "original_name": metadata.get("original_name", target.name),
             "size": target.stat().st_size,
             "original_path": metadata.get("original_path", ""),
             "sha256": metadata.get("sha256", ""),
             "reason": metadata.get("reason", ""),
             "quarantined_at": metadata.get("quarantined_at", ""),
+            "neutralized": metadata.get("neutralized", False),
         })
 
     entries.sort(key=lambda item: item["quarantined_at"], reverse=True)
@@ -471,7 +499,8 @@ def restore_quarantined_file(filename):
     if original:
         destination = Path(original)
     else:
-        destination = Path.home() / "Downloads" / target.name
+        name = metadata.get("original_name") or target.name.replace(QUARANTINE_STORED_SUFFIX, "")
+        destination = Path.home() / "Downloads" / name
 
     if destination.exists():
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -481,7 +510,12 @@ def restore_quarantined_file(filename):
 
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(target), str(destination))
+        if metadata.get("neutralized"):
+            # Reverse the XOR to reconstruct the original bytes.
+            _xor_copy(target, destination, int(metadata.get("xor_key", QUARANTINE_XOR_KEY)))
+            target.unlink()
+        else:
+            shutil.move(str(target), str(destination))
     except Exception as e:
         return False, f"Restore failed: {e}"
 
