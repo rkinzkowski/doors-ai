@@ -1336,6 +1336,15 @@
                     <li><span>
                         {% if security_locked %}<span class="badge low">on</span> Passphrase lock is enabled{% else %}<span class="badge medium">off</span> Passphrase lock is off{% endif %}
                     </span></li>
+                    <li>
+                        <span>
+                            {% if notifications_enabled %}<span class="badge low">on</span> Desktop pop-up alerts for serious threats{% else %}<span class="badge medium">off</span> Desktop pop-up alerts are off{% endif %}
+                        </span>
+                        <form action="/security/notifications" method="post">
+                            <input type="hidden" name="enabled" value="{{ '0' if notifications_enabled else '1' }}">
+                            <button type="submit">{{ 'Turn Off' if notifications_enabled else 'Turn On' }}</button>
+                        </form>
+                    </li>
                 </ul>
 
                 <h3>{{ 'Change or Remove Passphrase' if security_locked else 'Set a Passphrase' }}</h3>
