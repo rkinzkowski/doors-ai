@@ -503,6 +503,7 @@
             <a href="#logins">Sign-ins</a>
             <a href="#files">Files</a>
             <a href="#quarantine">Quarantine</a>
+            <a href="#feeds">Threat Feeds</a>
             <a href="#endpoint">System Changes</a>
             <a href="#network">Network</a>
             <a href="#processes">Programs</a>
@@ -912,6 +913,58 @@
                         <input class="wide-input" type="text" name="sha256" placeholder="Paste a SHA256 fingerprint (64 characters)" pattern="[0-9a-fA-F]{64}" required>
                         <input type="text" name="description" placeholder="Note (optional)">
                         <button class="primary" type="submit">Add Fingerprint</button>
+                    </form>
+                </div>
+            </div>
+        </details>
+
+        <details class="panel" id="feeds" open>
+            <summary>
+                <h2>Threat Intelligence Feeds</h2>
+                <span class="desc">Keep your threat list and malware fingerprints current by pulling from trusted public feeds. Only plain lists are downloaded &mdash; never any actual malware.</span>
+            </summary>
+            <div class="panel-body">
+                <h3>Suspicious Addresses (IPsum)</h3>
+                <p class="muted">
+                    A free, daily-updated feed of addresses that showed up on 30+ public blocklists. The confidence level sets how many lists an address must appear on before it's added &mdash; higher means fewer false alarms.
+                    {% if feeds.ipsum_last_sync %}
+                        Last updated {{ feeds.ipsum_last_sync }} ({{ feeds.ipsum_last_count }} addresses added).
+                    {% else %}
+                        Not synced yet.
+                    {% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/feeds/update-ipsum" method="post">
+                        <label class="inline">
+                            Confidence
+                            <select name="min_lists" title="Minimum number of blocklists an address must appear on">
+                                {% for tier in [2, 3, 4, 5, 6, 8] %}
+                                    <option value="{{ tier }}" {% if feeds.ipsum_min_lists == tier %}selected{% endif %}>
+                                        {{ tier }}+ lists{% if tier == 3 %} (recommended){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <button class="primary" type="submit">Update Threat List</button>
+                    </form>
+                </div>
+
+                <h3 style="margin-top: 18px;">Malware Fingerprints (MalwareBazaar)</h3>
+                <p class="muted">
+                    Free SHA256 fingerprints of recently-seen malware from abuse.ch. This feed needs a free Auth-Key: create one at <span class="mono" style="max-width:none;">auth.abuse.ch</span>, then paste it below (it's stored only on this PC).
+                    {% if feeds.bazaar_has_key %}
+                        A key is saved.
+                    {% endif %}
+                    {% if feeds.bazaar_last_sync %}
+                        Last updated {{ feeds.bazaar_last_sync }} ({{ feeds.bazaar_last_count }} new fingerprints).
+                    {% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/feeds/update-hashes" method="post">
+                        <input class="wide-input" type="text" name="auth_key"
+                            placeholder="{{ 'Auth-Key saved - paste again to replace' if feeds.bazaar_has_key else 'Paste your abuse.ch Auth-Key' }}"
+                            autocomplete="off">
+                        <button class="primary" type="submit">Update Fingerprints</button>
                     </form>
                 </div>
             </div>

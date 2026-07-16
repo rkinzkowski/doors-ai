@@ -18,4 +18,9 @@ process_logs.csv
 endpoint_logs.csv
 persistence_baseline.json
 login_import_state.json
+feeds_config.json
 scanner/models/
+
+# Threat-feed data (regenerated from feeds; machine-specific)
+threat_list.csv
+malware_hashes.csv
