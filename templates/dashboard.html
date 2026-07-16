@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Doors AI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚪</text></svg>">
     <style>
@@ -522,6 +523,7 @@
             <a href="#network">Network</a>
             <a href="#defender">Defender</a>
             <a href="#processes">Programs</a>
+            <a href="#security">Security</a>
         </nav>
         <div class="top-actions">
             <span id="updated-at"></span>
@@ -1321,11 +1323,56 @@
                 </ul>
             </div>
         </details>
+
+        <details class="panel" id="security">
+            <summary>
+                <h2>Dashboard Security</h2>
+                <span class="desc">This dashboard can stop programs and delete files, so it stays locked to this PC. Optionally require a passphrase to open it.</span>
+            </summary>
+            <div class="panel-body">
+                <ul class="plain">
+                    <li><span><span class="badge low">on</span> Runs on this PC only (127.0.0.1) &mdash; not reachable from your network</span></li>
+                    <li><span><span class="badge low">on</span> Action buttons are protected against forged requests from other web pages</span></li>
+                    <li><span>
+                        {% if security_locked %}<span class="badge low">on</span> Passphrase lock is enabled{% else %}<span class="badge medium">off</span> Passphrase lock is off{% endif %}
+                    </span></li>
+                </ul>
+
+                <h3>{{ 'Change or Remove Passphrase' if security_locked else 'Set a Passphrase' }}</h3>
+                <p class="muted">{% if security_locked %}Enter a new passphrase to change it, or leave blank and submit to remove the lock.{% else %}Set a passphrase to require it every time this dashboard is opened. Leave blank to keep it unlocked.{% endif %} If you forget it, delete <span class="mono" style="max-width:none;">security_config.json</span> to reset.</p>
+                <div class="tools">
+                    <form action="/security/set-passphrase" method="post">
+                        <input type="text" name="passphrase" placeholder="New passphrase" autocomplete="off">
+                        <button class="primary" type="submit">Save</button>
+                    </form>
+                    {% if security_locked %}
+                    <form action="/logout" method="post">
+                        <button type="submit">Lock Now</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
     </div>
 </div>
 
 <script>
 (function () {
+    // Attach the CSRF token to every state-changing form so the server
+    // accepts our actions and rejects forged POSTs from other pages.
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    var CSRF = meta ? meta.content : '';
+    function injectCsrf(root) {
+        root.querySelectorAll('form[method="post"], form[method="POST"]').forEach(function (f) {
+            if (!f.querySelector('input[name="csrf_token"]')) {
+                var i = document.createElement('input');
+                i.type = 'hidden'; i.name = 'csrf_token'; i.value = CSRF;
+                f.appendChild(i);
+            }
+        });
+    }
+    injectCsrf(document);
+
     var THEME_KEY = 'doors-theme';
     var stored = localStorage.getItem(THEME_KEY);
     if (stored) document.documentElement.dataset.theme = stored;
@@ -1377,6 +1424,7 @@
                 var current = document.getElementById('app');
                 if (fresh && current) {
                     current.innerHTML = fresh.innerHTML;
+                    injectCsrf(document);
                     restoreOpenState(document);
                     stampUpdated();
                 }
