@@ -469,6 +469,46 @@
 
         .pagination form { display: flex; gap: 6px; align-items: center; margin: 0; }
         .pagination button { padding: 3px 10px; font-size: 12px; }
+
+        /* ---------- Trend bar chart ---------- */
+        .chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 120px;
+            padding-top: 6px;
+        }
+        .chart .col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+            height: 100%;
+            min-width: 0;
+        }
+        .chart .bar {
+            width: 70%;
+            max-width: 26px;
+            min-height: 2px;
+            background: var(--accent);
+            border-radius: 4px 4px 0 0;
+            transition: opacity 0.15s;
+        }
+        .chart .col:hover .bar { opacity: 0.75; }
+        .chart .col.empty .bar { background: var(--hairline); }
+        .chart .tick { font-size: 10px; color: var(--muted); white-space: nowrap; }
+        .chart .cnt { font-size: 10px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .summary-grid .box { border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 12px; }
+        .summary-grid .box .k { font-size: 12px; color: var(--text-2); }
+        .summary-grid .box .v { font-size: 20px; font-weight: 650; }
     </style>
 </head>
 <body>
@@ -515,6 +555,7 @@
             <span>Your personal security guard</span>
         </div>
         <nav class="jump">
+            <a href="#history">Trends</a>
             <a href="#logins">Sign-ins</a>
             <a href="#files">Files</a>
             <a href="#quarantine">Quarantine</a>
@@ -638,6 +679,39 @@
                 <div class="value">{{ summary.endpoint_alerts }}</div>
             </div>
         </div>
+
+        <details class="panel" id="history" open>
+            <summary>
+                <h2>History &amp; Trends</h2>
+                <span class="desc">Alerts recorded over time, so you can see whether things are calming down or heating up. Covers file, program, and system alerts.</span>
+            </summary>
+            <div class="panel-body">
+                <h3>Alerts per day (last 14 days)</h3>
+                <div class="chart">
+                    {% for day in trend_days %}
+                    <div class="col {{ 'empty' if day.count == 0 else '' }}" title="{{ day.date }}: {{ day.count }} alert(s)">
+                        <span class="cnt">{{ day.count or '' }}</span>
+                        <div class="bar" style="height: {{ (day.count / trend_max * 100) if trend_max else 0 }}%;"></div>
+                        <span class="tick">{{ day.label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <h3 style="margin-top: 18px;">This week ({{ week_summary.total }} alert{{ 's' if week_summary.total != 1 }})</h3>
+                {% if week_summary.total %}
+                <div class="summary-grid">
+                    {% for kind, n in week_summary.by_kind.items() %}
+                    <div class="box">
+                        <div class="k">{{ kind.replace('file:', 'File - ').replace('process', 'Programs').replace('endpoint:', 'System - ') }}</div>
+                        <div class="v">{{ n }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="muted">No alerts recorded this week &mdash; quiet is good.</p>
+                {% endif %}
+            </div>
+        </details>
 
         <form class="filter-bar" method="get" action="/">
             <div class="filter-grid">

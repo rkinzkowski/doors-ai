@@ -349,6 +349,14 @@ def log_scan(filename, sha256, result, reason):
     with open(SCAN_LOG, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([filename, sha256, result, reason, timestamp])
 
+    if result in ("malicious", "suspicious"):
+        try:
+            from monitor.events_db import record_event
+            severity = "critical" if result == "malicious" else "high"
+            record_event(f"file:{result}", severity, filename, reason)
+        except Exception:
+            pass
+
 
 def compute_sha256(filepath):
     digest = hashlib.sha256()
