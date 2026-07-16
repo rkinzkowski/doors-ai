@@ -24,9 +24,12 @@ from scanner.scanner_engine import (
     get_scan_status,
     list_quarantined_files,
     load_hash_db,
+    load_publisher_lists,
     load_scan_config,
     load_trusted_hashes,
     normalize_folder,
+    set_publisher_strict,
+    update_publisher_list,
     normalize_sha256,
     quarantine_file,
     restore_quarantined_file,
@@ -1077,6 +1080,11 @@ def home():
         hash_db_count = 0
 
     try:
+        publisher_lists = load_publisher_lists()
+    except Exception:
+        publisher_lists = {"allow": [], "deny": [], "strict": False}
+
+    try:
         network = get_network_snapshot()
     except Exception as e:
         print(f"[ERROR] Network snapshot failed: {e}")
@@ -1124,6 +1132,7 @@ def home():
         posture=posture,
         feeds=feeds,
         defender=defender,
+        publisher_lists=publisher_lists,
     )
 
 
@@ -1388,6 +1397,23 @@ def quarantine_delete():
         else:
             print(f"[QUARANTINE] Delete failed for {filename}: {detail}")
             flash(f"Could not delete {filename}: {detail}", "error")
+
+    return redirect(url_for("home"))
+
+
+@app.route("/publishers/update", methods=["POST"])
+def publishers_update():
+    action = request.form.get("action", "").strip()
+    publisher = request.form.get("publisher", "").strip()
+
+    if action == "strict":
+        set_publisher_strict(request.form.get("strict") == "1")
+        flash("Publisher strict mode updated.", "success")
+    elif action in ("allow", "deny", "remove-allow", "remove-deny") and publisher:
+        update_publisher_list(action, publisher)
+        verb = {"allow": "trusted", "deny": "blocked",
+                "remove-allow": "removed from trusted", "remove-deny": "removed from blocked"}[action]
+        flash(f"Publisher \"{publisher}\" {verb}.", "success")
 
     return redirect(url_for("home"))
 

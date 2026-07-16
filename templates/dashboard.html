@@ -874,6 +874,56 @@
                 </div>
 
                 {{ pagination('File alerts', 'scan_page', pages.scan) }}
+
+                <h3>Trusted &amp; Blocked Publishers</h3>
+                <p class="muted">
+                    Programs can be digitally signed by a publisher &mdash; but signed doesn't always mean safe.
+                    Block a publisher to always flag its programs, or trust one to always allow it.
+                    {% if publisher_lists.strict %}
+                        <strong>Strict mode is ON:</strong> any signed program from a publisher not on your trusted list is flagged for review.
+                    {% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/publishers/update" method="post">
+                        <input type="hidden" name="action" value="deny">
+                        <input class="wide-input" type="text" name="publisher" placeholder="Publisher name to block, e.g. Some Sketchy LLC" required>
+                        <button class="danger" type="submit">Block Publisher</button>
+                    </form>
+                    <form action="/publishers/update" method="post">
+                        <input type="hidden" name="action" value="allow">
+                        <input class="wide-input" type="text" name="publisher" placeholder="Publisher name to always trust" required>
+                        <button class="success" type="submit">Trust Publisher</button>
+                    </form>
+                    <form action="/publishers/update" method="post">
+                        <input type="hidden" name="action" value="strict">
+                        <input type="hidden" name="strict" value="{{ '0' if publisher_lists.strict else '1' }}">
+                        <button type="submit">{{ 'Turn Strict Mode Off' if publisher_lists.strict else 'Turn Strict Mode On' }}</button>
+                    </form>
+                </div>
+                {% if publisher_lists.deny or publisher_lists.allow %}
+                <ul class="plain">
+                    {% for pub in publisher_lists.deny %}
+                    <li>
+                        <span><span class="badge critical">blocked</span> {{ pub }}</span>
+                        <form action="/publishers/update" method="post">
+                            <input type="hidden" name="action" value="remove-deny">
+                            <input type="hidden" name="publisher" value="{{ pub }}">
+                            <button type="submit">Remove</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                    {% for pub in publisher_lists.allow %}
+                    <li>
+                        <span><span class="badge low">trusted</span> {{ pub }}</span>
+                        <form action="/publishers/update" method="post">
+                            <input type="hidden" name="action" value="remove-allow">
+                            <input type="hidden" name="publisher" value="{{ pub }}">
+                            <button type="submit">Remove</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
             </div>
         </details>
 

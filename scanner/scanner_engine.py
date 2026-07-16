@@ -551,34 +551,99 @@ def delete_quarantined_file(filename):
     return True, target.name
 
 
+PUBLISHERS_FILE = ROOT_DIR / "publishers.json"
+_DEFAULT_PUBLISHERS = {"allow": [], "deny": [], "strict": False}
+
+
+def load_publisher_lists():
+    lists = {"allow": [], "deny": [], "strict": False}
+    if PUBLISHERS_FILE.exists():
+        try:
+            with open(PUBLISHERS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            lists["allow"] = [str(p) for p in data.get("allow", [])]
+            lists["deny"] = [str(p) for p in data.get("deny", [])]
+            lists["strict"] = bool(data.get("strict", False))
+        except Exception as e:
+            print(f"[SCANNER] Could not read publisher lists: {e}")
+    return lists
+
+
+def save_publisher_lists(lists):
+    try:
+        with open(PUBLISHERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(lists, f, indent=2)
+    except Exception as e:
+        print(f"[SCANNER] Could not save publisher lists: {e}")
+
+
+def update_publisher_list(action, publisher):
+    """action: allow | deny | remove-allow | remove-deny."""
+    publisher = str(publisher or "").strip()
+    if not publisher:
+        return
+    lists = load_publisher_lists()
+    for bucket in ("allow", "deny"):
+        lists[bucket] = [p for p in lists[bucket] if p.lower() != publisher.lower()]
+    if action == "allow":
+        lists["allow"].append(publisher)
+    elif action == "deny":
+        lists["deny"].append(publisher)
+    save_publisher_lists(lists)
+
+
+def set_publisher_strict(strict):
+    lists = load_publisher_lists()
+    lists["strict"] = bool(strict)
+    save_publisher_lists(lists)
+
+
+def _publisher_cn(subject):
+    """Pull the common name (CN=) out of an X.509 subject string."""
+    for part in str(subject or "").split(","):
+        part = part.strip()
+        if part.upper().startswith("CN="):
+            return part[3:].strip().strip('"')
+    return subject.strip() if subject else ""
+
+
 def check_authenticode_signature(path):
-    """Return 'valid', 'unsigned', 'invalid', or 'unknown' for a PE file."""
+    """Return (status, publisher) for a PE file.
+
+    status is 'valid', 'unsigned', 'invalid', or 'unknown'; publisher is the
+    signing certificate's common name (empty if none).
+    """
     if platform.system() != "Windows":
-        return "unknown"
+        return "unknown", ""
 
     try:
         escaped = str(path).replace("'", "''")
         completed = subprocess.run(
             [
                 "powershell", "-NoProfile", "-NonInteractive", "-Command",
-                f"(Get-AuthenticodeSignature -LiteralPath '{escaped}').Status",
+                f"$s = Get-AuthenticodeSignature -LiteralPath '{escaped}'; "
+                f"\"$($s.Status)|$($s.SignerCertificate.Subject)\"",
             ],
             capture_output=True,
             text=True,
             timeout=60,
         )
-        status = completed.stdout.strip().lower()
+        raw = completed.stdout.strip()
     except Exception as e:
         print(f"[SCANNER] Signature check failed for {path}: {e}")
-        return "unknown"
+        return "unknown", ""
+
+    status, _, subject = raw.partition("|")
+    status = status.strip().lower()
+    publisher = _publisher_cn(subject)
 
     if status == "valid":
-        return "valid"
+        return "valid", publisher
     if status == "notsigned":
-        return "unsigned"
+        return "unsigned", ""
     if status in {"hashmismatch", "nottrusted"}:
-        return "invalid"
-    return "unknown"
+        return "invalid", publisher
+    return "unknown", publisher
 
 
 def scan_script_content(path):
@@ -669,8 +734,15 @@ def analyze_file(path):
         return "safe", "No threat detected"
 
     if suffix in EXECUTABLE_EXTENSIONS:
-        signature = check_authenticode_signature(path)
+        signature, publisher = check_authenticode_signature(path)
         if signature == "valid":
+            lists = load_publisher_lists()
+            if publisher and publisher.lower() in {p.lower() for p in lists["deny"]}:
+                return "suspicious", f"Signed by a blocked publisher: {publisher}"
+            if lists.get("strict") and publisher and publisher.lower() not in {p.lower() for p in lists["allow"]}:
+                return "suspicious", f"Signed by an unapproved publisher: {publisher}"
+            if publisher:
+                return "safe", f"Valid signature - {publisher}"
             return "safe", "Valid digital signature"
         if signature == "invalid":
             return "suspicious", "Digital signature invalid (possible tampering)"
