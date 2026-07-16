@@ -520,6 +520,7 @@
             <a href="#feeds">Threat Feeds</a>
             <a href="#endpoint">System Changes</a>
             <a href="#network">Network</a>
+            <a href="#defender">Defender</a>
             <a href="#processes">Programs</a>
         </nav>
         <div class="top-actions">
@@ -1131,6 +1132,55 @@
                         {% endfor %}
                     </table>
                 </div>
+            </div>
+        </details>
+
+        <details class="panel" id="defender" open>
+            <summary>
+                <h2>Windows Defender</h2>
+                <span class="desc">A second opinion from the antivirus built into Windows, shown alongside Doors AI. Read-only &mdash; Doors AI never changes your Defender settings.</span>
+            </summary>
+            <div class="panel-body">
+                {% if not defender.available %}
+                    <p class="muted">Defender status unavailable{% if defender.error %}: {{ defender.error }}{% endif %}.</p>
+                {% else %}
+                    <div class="status-row">
+                        <span class="pill">
+                            <span class="dot {{ 'ok' if defender.antivirus_enabled else 'bad' }}"></span>
+                            <b>Antivirus</b> {{ 'on' if defender.antivirus_enabled else 'OFF' }}
+                        </span>
+                        <span class="pill">
+                            <span class="dot {{ 'ok' if defender.realtime_enabled else 'warn' }}"></span>
+                            <b>Real-time protection</b> {{ 'on' if defender.realtime_enabled else 'OFF' }}
+                        </span>
+                        <span class="pill">
+                            <b>Virus definitions</b>
+                            {% if defender.signature_age_days is not none %}{{ defender.signature_age_days }} day(s) old{% else %}unknown{% endif %}
+                        </span>
+                    </div>
+
+                    <h3>Threats Defender Has Seen</h3>
+                    <div class="table-scroll">
+                        <table>
+                            <tr>
+                                <th>Severity</th>
+                                <th>Threat</th>
+                                <th>Status</th>
+                                <th>Where</th>
+                            </tr>
+                            {% for threat in defender.threats %}
+                            <tr>
+                                <td><span class="badge {{ threat.severity }}">{{ threat.severity }}</span></td>
+                                <td>{{ threat.name }}</td>
+                                <td>{{ 'Active - needs action' if threat.active else 'Handled' }}</td>
+                                <td class="mono" title="{{ threat.resources }}">{{ threat.resources or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="empty">Defender hasn't flagged any threats.</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                {% endif %}
             </div>
         </details>
 

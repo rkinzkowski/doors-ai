@@ -48,6 +48,7 @@ from monitor.login_events import (
 )
 from monitor.network_monitor import get_network_snapshot
 from monitor.mitre import tag_technique
+from monitor.defender import get_defender_status
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -539,10 +540,24 @@ def build_runtime_status(active_alerts):
     }
 
 
-def compute_posture(summary, runtime_status, network, scan_config):
+def compute_posture(summary, runtime_status, network, scan_config, defender=None):
     """Security health score (0-100) with plain-language recommendations."""
     score = 100
     recommendations = []
+
+    if defender and defender.get("available"):
+        if not defender.get("antivirus_enabled"):
+            score -= 15
+            recommendations.append("Windows Defender antivirus is turned off - turn it back on in Windows Security.")
+        elif not defender.get("realtime_enabled"):
+            score -= 8
+            recommendations.append("Windows Defender real-time protection is off - turn it on in Windows Security.")
+        active_threats = [t for t in defender.get("threats", []) if t.get("active")]
+        if active_threats:
+            score -= min(len(active_threats) * 8, 20)
+            recommendations.append(
+                f"Windows Defender has {len(active_threats)} active threat(s) - open Windows Security to remove them."
+            )
 
     if summary["file_alerts"]:
         score -= min(summary["file_alerts"] * 5, 20)
@@ -1067,7 +1082,13 @@ def home():
         print(f"[ERROR] Network snapshot failed: {e}")
         network = {"devices": [], "ports": [], "error": str(e)}
 
-    posture = compute_posture(summary, runtime_status, network, scan_config)
+    try:
+        defender = get_defender_status()
+    except Exception as e:
+        print(f"[ERROR] Defender status failed: {e}")
+        defender = {"available": False, "error": str(e)}
+
+    posture = compute_posture(summary, runtime_status, network, scan_config, defender)
 
     feeds_config = load_feeds_config()
     feeds = {
@@ -1102,6 +1123,7 @@ def home():
         network=network,
         posture=posture,
         feeds=feeds,
+        defender=defender,
     )
 
 
