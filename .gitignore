@@ -1,0 +1,21 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+.env
+.vscode/
+
+quarantine/
+scanner/quarantine/
+
+archives/
+
+# Runtime state (machine-specific, regenerated automatically)
+logs.csv
+scanner_logs.csv
+process_logs.csv
+endpoint_logs.csv
+persistence_baseline.json
+login_import_state.json
+scanner/models/
