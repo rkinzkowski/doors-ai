@@ -54,6 +54,7 @@ from monitor.login_events import (
 from monitor.network_monitor import get_network_snapshot
 from monitor.mitre import tag_technique
 from monitor.defender import get_defender_status
+from monitor.notify import set_enabled as set_notify_enabled, is_enabled as notify_enabled
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -158,6 +159,17 @@ def login():
 def logout():
     session.pop("authed", None)
     return redirect(url_for("login"))
+
+
+@app.route("/security/notifications", methods=["POST"])
+def toggle_notifications():
+    cfg = load_security_config()
+    new_value = request.form.get("enabled") == "1"
+    cfg["notifications"] = new_value
+    save_security_config(cfg)
+    set_notify_enabled(new_value)
+    flash(f"Desktop notifications turned {'on' if new_value else 'off'}.", "success")
+    return redirect(url_for("home"))
 
 
 @app.route("/security/set-passphrase", methods=["POST"])
@@ -797,6 +809,15 @@ def log_suspicious_process(pid, name, path, reason):
         writer.writerow([timestamp, pid, name, path, reason])
 
     print(f"[ALERT] Suspicious process: {name} (PID: {pid}) - {reason}")
+
+    try:
+        from monitor.notify import notify
+        severity = classify_process_severity({"name": name, "path": path, "reason": reason})
+        if severity in ("high", "critical"):
+            notify("Doors AI: Suspicious program", f"{name} - {reason}", key=alert_key)
+    except Exception:
+        pass
+
     return True
 
 
@@ -1248,6 +1269,7 @@ def home():
         defender=defender,
         publisher_lists=publisher_lists,
         security_locked=bool(load_security_config().get("passphrase")),
+        notifications_enabled=notify_enabled(),
     )
 
 
@@ -1666,6 +1688,7 @@ def hashdb_add():
 
 
 if __name__ == "__main__":
+    set_notify_enabled(load_security_config().get("notifications", True))
     initialize_runtime_files()
     ensure_model()
     load_recent_process_alerts()

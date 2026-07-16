@@ -773,6 +773,11 @@ def scan_file(filepath, log_safe=None, quarantine=True):
             log_scan(filename, sha256, "malicious", KNOWN_HASH_REASON)
             if quarantine:
                 quarantine_file(path, sha256=sha256, reason=KNOWN_HASH_REASON)
+            try:
+                from monitor.notify import notify
+                notify("Doors AI: Malware quarantined", f"{filename} matched a known malware fingerprint.", key=sha256)
+            except Exception:
+                pass
             return scan_response(path, "malicious", KNOWN_HASH_REASON, sha256=sha256)
 
         if sha256 in load_trusted_hashes():

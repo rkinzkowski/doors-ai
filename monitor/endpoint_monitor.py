@@ -102,6 +102,14 @@ def log_endpoint_alert(category, severity, name, detail, reason):
             csv.writer(f).writerow([timestamp, category, severity, name, detail, reason])
 
     print(f"[ENDPOINT] {severity.upper()} {category}: {name} - {reason}")
+
+    try:
+        from monitor.notify import notify_if_serious
+        label = "Ransomware warning" if category == "ransomware" else "System change detected"
+        notify_if_serious(severity, f"Doors AI: {label}", f"{name} - {reason}", key=key)
+    except Exception:
+        pass
+
     return True
 
 
