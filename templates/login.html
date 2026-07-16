@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Doors AI — Locked</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #f9f9f7;
+            color: #0b0b0b;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #0d0d0d; color: #fff; }
+            .card { background: #1a1a19 !important; border-color: #2c2c2a !important; }
+            input { background: #1a1a19 !important; color: #fff !important; border-color: #383835 !important; }
+        }
+        .card {
+            background: #fcfcfb;
+            border: 1px solid #e1e0d9;
+            border-radius: 12px;
+            padding: 32px;
+            width: 320px;
+            text-align: center;
+        }
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        p { color: #898781; font-size: 13px; margin: 0 0 20px; }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #c9ced6;
+            border-radius: 8px;
+            font: inherit;
+            margin-bottom: 12px;
+            background: #fff;
+            color: #0b0b0b;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: #2a78d6;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { filter: brightness(1.08); }
+        .error { color: #d03b3b; font-size: 13px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <form class="card" method="post" action="/login">
+        <h1>&#128274; Doors AI</h1>
+        <p>This dashboard is locked. Enter your passphrase to continue.</p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <input type="password" name="passphrase" placeholder="Passphrase" autofocus autocomplete="current-password">
+        <button type="submit">Unlock</button>
+    </form>
+</body>
+</html>

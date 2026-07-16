@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
+import secrets
+import hashlib
 import pandas as pd
 import requests
 from sklearn.ensemble import IsolationForest
@@ -61,8 +63,120 @@ from monitor.threat_feeds import (
 )
 
 app = Flask(__name__)
-# Local-only dashboard; the secret key just enables flash messages.
-app.secret_key = "doors-ai-local-dashboard"
+
+SECURITY_CONFIG = "security_config.json"
+
+
+def load_security_config():
+    if os.path.exists(SECURITY_CONFIG):
+        try:
+            with open(SECURITY_CONFIG, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_security_config(cfg):
+    with open(SECURITY_CONFIG, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+
+
+def _get_or_create_secret():
+    cfg = load_security_config()
+    if not cfg.get("secret_key"):
+        cfg["secret_key"] = secrets.token_hex(32)
+        save_security_config(cfg)
+    return cfg["secret_key"]
+
+
+def _hash_passphrase(passphrase, salt=None):
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return salt, digest.hex()
+
+
+def _passphrase_matches(passphrase, stored):
+    if not stored or "salt" not in stored or "hash" not in stored:
+        return False
+    _, computed = _hash_passphrase(passphrase, stored["salt"])
+    return secrets.compare_digest(computed, stored["hash"])
+
+
+# A persistent random secret makes sessions and CSRF tokens unforgeable.
+app.secret_key = _get_or_create_secret()
+
+
+@app.before_request
+def _security_gate():
+    # 1. Ensure every session has a CSRF token.
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_hex(16)
+
+    endpoint = request.endpoint or ""
+
+    # 2. Passphrase lock (only when the user has set one).
+    cfg = load_security_config()
+    if cfg.get("passphrase") and not session.get("authed"):
+        if endpoint not in ("login", "static"):
+            if request.method == "GET":
+                return redirect(url_for("login"))
+            abort(403)
+
+    # 3. CSRF check on every state-changing POST (login exempt: it carries
+    #    its own secret, the passphrase).
+    if request.method == "POST" and endpoint != "login":
+        if request.form.get("csrf_token", "") != session.get("csrf"):
+            abort(400, "Invalid or missing security token. Reload the page and try again.")
+
+
+@app.context_processor
+def _inject_csrf():
+    return {"csrf_token": session.get("csrf", "")}
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    cfg = load_security_config()
+    stored = cfg.get("passphrase")
+
+    if not stored:
+        # No lock configured; nothing to log into.
+        session["authed"] = True
+        return redirect(url_for("home"))
+
+    if request.method == "POST":
+        if _passphrase_matches(request.form.get("passphrase", ""), stored):
+            session["authed"] = True
+            return redirect(url_for("home"))
+        return render_template("login.html", error="Incorrect passphrase.")
+
+    return render_template("login.html", error=None)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("authed", None)
+    return redirect(url_for("login"))
+
+
+@app.route("/security/set-passphrase", methods=["POST"])
+def set_passphrase():
+    new = request.form.get("passphrase", "").strip()
+    cfg = load_security_config()
+
+    if new:
+        salt, digest = _hash_passphrase(new)
+        cfg["passphrase"] = {"salt": salt, "hash": digest}
+        save_security_config(cfg)
+        session["authed"] = True
+        flash("Dashboard lock enabled. You'll need this passphrase next time.", "success")
+    else:
+        cfg.pop("passphrase", None)
+        save_security_config(cfg)
+        flash("Dashboard lock removed.", "info")
+
+    return redirect(url_for("home"))
 
 PROCESS_LOG = "process_logs.csv"
 SCAN_LOG = "scanner_logs.csv"
@@ -1133,6 +1247,7 @@ def home():
         feeds=feeds,
         defender=defender,
         publisher_lists=publisher_lists,
+        security_locked=bool(load_security_config().get("passphrase")),
     )
 
 
@@ -1558,4 +1673,6 @@ if __name__ == "__main__":
     start_process_monitor_thread()
     start_endpoint_monitor_thread()
     start_login_import_thread()
-    app.run(debug=True, use_reloader=False)
+    # Bind to localhost only: the dashboard can terminate programs and delete
+    # files, so it must never be reachable from the network.
+    app.run(host="127.0.0.1", debug=True, use_reloader=False)
