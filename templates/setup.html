@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Doors AI — Welcome</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚪</text></svg>">
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #f9f9f7; color: #0b0b0b; padding: 24px;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #0d0d0d; color: #fff; }
+            .card { background: #1a1a19 !important; border-color: #2c2c2a !important; }
+            textarea, .guard { background: #141413 !important; color: #fff !important; border-color: #383835 !important; }
+        }
+        .card {
+            background: #fcfcfb; border: 1px solid #e1e0d9; border-radius: 14px;
+            padding: 32px; width: 560px; max-width: 100%;
+        }
+        h1 { font-size: 22px; margin: 0 0 4px; }
+        .sub { color: #898781; font-size: 14px; margin: 0 0 22px; }
+        h2 { font-size: 14px; margin: 22px 0 10px; }
+        .guards { display: grid; gap: 8px; }
+        .guard { border: 1px solid #e1e0d9; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+        .guard b { display: block; margin-bottom: 2px; }
+        label { display: block; font-size: 13px; color: #52514e; margin-bottom: 6px; }
+        textarea {
+            width: 100%; box-sizing: border-box; min-height: 72px; padding: 10px;
+            border: 1px solid #c9ced6; border-radius: 8px; font: inherit; font-size: 13px;
+            background: #fff; color: #0b0b0b; resize: vertical;
+        }
+        .check { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: 13px; color: #52514e; }
+        button {
+            width: 100%; padding: 12px; border: none; border-radius: 8px; margin-top: 18px;
+            background: #2a78d6; color: #fff; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer;
+        }
+        button:hover { filter: brightness(1.08); }
+    </style>
+</head>
+<body>
+    <form class="card" method="post" action="/setup/complete">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <h1>&#128682; Welcome to Doors AI</h1>
+        <p class="sub">Your personal security guard. Here's what it watches for you:</p>
+
+        <div class="guards">
+            <div class="guard"><b>File Guard</b> Checks new files in your folders against known malware, fake documents, and dangerous scripts.</div>
+            <div class="guard"><b>Program Guard</b> Watches running programs for hacking tools and suspicious behavior.</div>
+            <div class="guard"><b>System Guard</b> Notices when something new is added to your startup, tasks, or services &mdash; and warns you about ransomware.</div>
+            <div class="guard"><b>Sign-in Guard</b> Flags unusual sign-ins to your PC.</div>
+        </div>
+
+        <h2>Which folders should Doors AI protect?</h2>
+        <label>One folder per line. Downloads is filled in for you &mdash; add more if you like.</label>
+        <textarea name="folders">{{ default_folder }}</textarea>
+
+        <div class="check">
+            <input type="checkbox" id="notif" name="notifications" value="1" checked>
+            <label for="notif" style="margin:0;">Show me a desktop pop-up when something serious is found</label>
+        </div>
+
+        <button type="submit">Start Protecting My PC</button>
+    </form>
+</body>
+</html>

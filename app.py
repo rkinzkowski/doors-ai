@@ -125,7 +125,17 @@ def _security_gate():
 
     endpoint = request.endpoint or ""
 
-    # 2. Passphrase lock (only when the user has set one).
+    # 2. First-run wizard: only for a fresh install with nothing configured.
+    cfg_setup = load_security_config()
+    if not cfg_setup.get("setup_complete") and endpoint not in ("setup", "setup_complete", "login", "static"):
+        try:
+            configured = bool(load_scan_config().get("watch_folders"))
+        except Exception:
+            configured = True
+        if not configured and request.method == "GET":
+            return redirect(url_for("setup"))
+
+    # 2b. Passphrase lock (only when the user has set one).
     cfg = load_security_config()
     if cfg.get("passphrase") and not session.get("authed"):
         if endpoint not in ("login", "static"):
@@ -168,6 +178,40 @@ def login():
 def logout():
     session.pop("authed", None)
     return redirect(url_for("login"))
+
+
+@app.route("/setup")
+def setup():
+    default_downloads = str(os.path.join(os.path.expanduser("~"), "Downloads"))
+    return render_template("setup.html", default_folder=default_downloads)
+
+
+@app.route("/setup/complete", methods=["POST"])
+def setup_complete():
+    folders_raw = request.form.get("folders", "")
+    config = load_scan_config()
+    added = list(config.get("watch_folders", []))
+
+    for line in folders_raw.splitlines():
+        folder = line.strip()
+        if not folder:
+            continue
+        normalized = normalize_folder(folder)
+        if os.path.isdir(normalized) and normalized not in added:
+            added.append(normalized)
+
+    config["watch_folders"] = sorted(set(added))
+    save_scan_config(config)
+
+    set_notify_enabled(request.form.get("notifications") == "1")
+
+    cfg = load_security_config()
+    cfg["setup_complete"] = True
+    cfg["notifications"] = request.form.get("notifications") == "1"
+    save_security_config(cfg)
+
+    flash("Setup complete - Doors AI is now protecting your PC.", "success")
+    return redirect(url_for("home"))
 
 
 @app.route("/schedule/update", methods=["POST"])
