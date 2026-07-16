@@ -47,6 +47,12 @@ from monitor.login_events import (
     start_login_import_thread,
 )
 from monitor.network_monitor import get_network_snapshot
+from monitor.threat_feeds import (
+    load_feeds_config,
+    save_feeds_config,
+    update_ipsum,
+    update_malware_hashes,
+)
 
 app = Flask(__name__)
 # Local-only dashboard; the secret key just enables flash messages.
@@ -1056,6 +1062,16 @@ def home():
 
     posture = compute_posture(summary, runtime_status, network, scan_config)
 
+    feeds_config = load_feeds_config()
+    feeds = {
+        "ipsum_min_lists": feeds_config.get("ipsum_min_lists", 3),
+        "ipsum_last_sync": feeds_config.get("ipsum_last_sync"),
+        "ipsum_last_count": feeds_config.get("ipsum_last_count", 0),
+        "bazaar_has_key": bool(feeds_config.get("malwarebazaar_auth_key")),
+        "bazaar_last_sync": feeds_config.get("bazaar_last_sync"),
+        "bazaar_last_count": feeds_config.get("bazaar_last_count", 0),
+    }
+
     return render_template(
         "dashboard.html",
         data=ip_logs,
@@ -1076,6 +1092,7 @@ def home():
         hash_db_count=hash_db_count,
         network=network,
         posture=posture,
+        feeds=feeds,
     )
 
 
@@ -1403,6 +1420,50 @@ def ip_block():
             f"Firewall block requested for {ip}. If Doors AI is not running as administrator, the rule may not have been created.",
             "info",
         )
+
+    return redirect(url_for("home"))
+
+
+@app.route("/feeds/update-ipsum", methods=["POST"])
+def feeds_update_ipsum():
+    min_lists = request.form.get("min_lists", "").strip()
+    result = update_ipsum(min_lists=min_lists or None)
+
+    if result["ok"]:
+        # New threat-list entries invalidate the per-IP lookup cache.
+        check_local_threat_db.cache_clear()
+        flash(
+            f"Threat list updated from IPsum: {result['count']} address(es) "
+            f"on {result['min_lists']}+ blocklists.",
+            "success",
+        )
+    else:
+        flash(f"IPsum update failed: {result['error']}", "error")
+
+    return redirect(url_for("home"))
+
+
+@app.route("/feeds/update-hashes", methods=["POST"])
+def feeds_update_hashes():
+    auth_key = request.form.get("auth_key", "").strip()
+    result = update_malware_hashes(auth_key=auth_key or None)
+
+    if result["ok"]:
+        flash(
+            f"Malware fingerprints updated from MalwareBazaar: "
+            f"{result['count']} new (of {result['seen']} in the latest export).",
+            "success",
+        )
+    elif result["error"] == "auth_required":
+        flash(
+            "MalwareBazaar needs a free Auth-Key. Get one at auth.abuse.ch, "
+            "then paste it in the field and try again.",
+            "info",
+        )
+    elif result["error"] == "auth_rejected":
+        flash("MalwareBazaar rejected that Auth-Key. Double-check it at auth.abuse.ch.", "error")
+    else:
+        flash(f"MalwareBazaar update failed: {result['error']}", "error")
 
     return redirect(url_for("home"))
 
