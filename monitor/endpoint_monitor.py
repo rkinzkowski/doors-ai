@@ -110,6 +110,12 @@ def log_endpoint_alert(category, severity, name, detail, reason):
     except Exception:
         pass
 
+    try:
+        from monitor.events_db import record_event
+        record_event(f"endpoint:{category}", severity, name, reason)
+    except Exception:
+        pass
+
     return True
 
 

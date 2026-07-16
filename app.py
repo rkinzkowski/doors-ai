@@ -60,6 +60,7 @@ from monitor.scheduler import (
     set_scheduler_option,
     start_scheduler_thread,
 )
+from monitor.events_db import get_daily_counts, get_summary
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -829,11 +830,17 @@ def log_suspicious_process(pid, name, path, reason):
 
     print(f"[ALERT] Suspicious process: {name} (PID: {pid}) - {reason}")
 
+    severity = classify_process_severity({"name": name, "path": path, "reason": reason})
     try:
         from monitor.notify import notify
-        severity = classify_process_severity({"name": name, "path": path, "reason": reason})
         if severity in ("high", "critical"):
             notify("Doors AI: Suspicious program", f"{name} - {reason}", key=alert_key)
+    except Exception:
+        pass
+
+    try:
+        from monitor.events_db import record_event
+        record_event("process", severity, name, reason)
     except Exception:
         pass
 
@@ -1239,6 +1246,14 @@ def home():
         publisher_lists = {"allow": [], "deny": [], "strict": False}
 
     try:
+        trend_days = get_daily_counts(14)
+        trend_max = max((d["count"] for d in trend_days), default=0)
+        week_summary = get_summary(7)
+    except Exception as e:
+        print(f"[ERROR] Trend history failed: {e}")
+        trend_days, trend_max, week_summary = [], 0, {"days": 7, "total": 0, "by_kind": {}, "by_severity": {}}
+
+    try:
         network = get_network_snapshot()
     except Exception as e:
         print(f"[ERROR] Network snapshot failed: {e}")
@@ -1291,6 +1306,9 @@ def home():
         security_locked=bool(load_security_config().get("passphrase")),
         notifications_enabled=notify_enabled(),
         schedule=load_scheduler_config(),
+        trend_days=trend_days,
+        trend_max=trend_max,
+        week_summary=week_summary,
     )
 
 

@@ -27,3 +27,4 @@ malware_hashes.csv
 publishers.json
 security_config.json
 scheduler_config.json
+events.db
