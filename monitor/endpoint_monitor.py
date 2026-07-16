@@ -283,12 +283,26 @@ def scan_for_changes():
     for category, current in snapshot.items():
         known = baseline.get(category, {})
         for entry_key, detail in current.items():
-            if entry_key in known:
-                continue
-            severity, reason = _classify_new_entry(detail)
             display_name = entry_key.split("::", 1)[-1]
-            if log_endpoint_alert(category, severity, display_name, detail, reason):
-                new_alerts += 1
+
+            if entry_key not in known:
+                severity, reason = _classify_new_entry(detail)
+                if log_endpoint_alert(category, severity, display_name, detail, reason):
+                    new_alerts += 1
+                continue
+
+            # Existing entry whose target changed: a classic persistence
+            # hijack (an autorun repointed at a new payload). Escalate if
+            # the new value looks hostile, otherwise flag it as high since
+            # a silently-changed autorun is inherently suspicious.
+            if known[entry_key] != detail:
+                severity, hint = _classify_new_entry(detail)
+                if severity == "medium":
+                    severity = "high"
+                reason = f"Existing {category} entry changed target ({hint})"
+                changed_detail = f"was: {known[entry_key]} | now: {detail}"
+                if log_endpoint_alert(category, severity, display_name, changed_detail, reason):
+                    new_alerts += 1
 
     # Persist the fresh snapshot so each change alerts exactly once and
     # removed entries stop being tracked.
