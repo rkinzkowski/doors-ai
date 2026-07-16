@@ -1,0 +1,4 @@
+ip,reason,confidence,timestamp
+185.199.108.153,Brute force detected,85,2025-06-23 12:40:00
+23.216.10.1,Suspicious login time,65,2025-06-23 12:47:00
+91.198.174.192,Pattern matched historical DDoS,95,2025-06-23 12:51:00
