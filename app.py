@@ -61,6 +61,7 @@ from monitor.scheduler import (
     start_scheduler_thread,
 )
 from monitor.events_db import get_daily_counts, get_summary
+from monitor.correlation import get_incidents
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -1254,6 +1255,12 @@ def home():
         trend_days, trend_max, week_summary = [], 0, {"days": 7, "total": 0, "by_kind": {}, "by_severity": {}}
 
     try:
+        incidents = get_incidents(days=7)
+    except Exception as e:
+        print(f"[ERROR] Incident correlation failed: {e}")
+        incidents = []
+
+    try:
         network = get_network_snapshot()
     except Exception as e:
         print(f"[ERROR] Network snapshot failed: {e}")
@@ -1309,6 +1316,7 @@ def home():
         trend_days=trend_days,
         trend_max=trend_max,
         week_summary=week_summary,
+        incidents=incidents,
     )
 
 

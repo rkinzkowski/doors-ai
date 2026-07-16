@@ -555,6 +555,7 @@
             <span>Your personal security guard</span>
         </div>
         <nav class="jump">
+            <a href="#incidents">Incidents</a>
             <a href="#history">Trends</a>
             <a href="#logins">Sign-ins</a>
             <a href="#files">Files</a>
@@ -679,6 +680,42 @@
                 <div class="value">{{ summary.endpoint_alerts }}</div>
             </div>
         </div>
+
+        <details class="panel" id="incidents" open>
+            <summary>
+                <h2>Incidents</h2>
+                <span class="desc">Related alerts that happened close together, grouped into a single story so a multi-step attack is easy to follow.</span>
+            </summary>
+            <div class="panel-body">
+                {% for incident in incidents %}
+                <details class="panel" style="margin-bottom: 10px;">
+                    <summary>
+                        <span class="badge {{ incident.severity }}">{{ incident.severity }}</span>
+                        <strong style="font-weight:600;">{{ incident.summary }}</strong>
+                        <span class="desc">{{ incident.count }} alert{{ 's' if incident.count != 1 }} &middot; {{ incident.start }}{% if incident.end != incident.start %} &ndash; {{ incident.end }}{% endif %}</span>
+                    </summary>
+                    <div class="panel-body">
+                        <div class="table-scroll">
+                            <table>
+                                <tr><th>When</th><th>Severity</th><th>Type</th><th>What</th><th>Details</th></tr>
+                                {% for ev in incident.events %}
+                                <tr>
+                                    <td>{{ ev.ts }}</td>
+                                    <td><span class="badge {{ ev.severity }}">{{ ev.severity }}</span></td>
+                                    <td>{{ ev.kind.replace('file:', 'File - ').replace('process', 'Program').replace('endpoint:', 'System - ') }}</td>
+                                    <td>{{ ev.title }}</td>
+                                    <td>{{ ev.detail }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                </details>
+                {% else %}
+                <p class="muted">No incidents &mdash; nothing serious has been recorded recently.</p>
+                {% endfor %}
+            </div>
+        </details>
 
         <details class="panel" id="history" open>
             <summary>
