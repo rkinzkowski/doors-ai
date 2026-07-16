@@ -72,6 +72,25 @@ def get_daily_counts(days=14):
     return out
 
 
+def get_events(days=7, limit=500):
+    """Return recent events as dicts, newest first."""
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = []
+    try:
+        with _lock:
+            conn = _connect()
+            for ts, kind, severity, title, detail in conn.execute(
+                "SELECT ts, kind, severity, title, detail FROM events "
+                "WHERE ts >= ? ORDER BY ts DESC LIMIT ?", (since, limit),
+            ):
+                rows.append({"ts": ts, "kind": kind, "severity": severity or "",
+                             "title": title or "", "detail": detail or ""})
+            conn.close()
+    except Exception as e:
+        print(f"[EVENTS] Could not read events: {e}")
+    return rows
+
+
 def get_summary(days=7):
     """Totals for the last `days` days, broken down by kind and severity."""
     since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
