@@ -27,6 +27,10 @@ FEEDS_CONFIG = ROOT_DIR / "feeds_config.json"
 
 IPSUM_URL = "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt"
 BAZAAR_RECENT_URL = "https://mb-api.abuse.ch/v2/files/exports/{key}/recent.csv"
+FEODO_URL = "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt"
+FEODO_REASON = "Feodo Tracker (botnet C2)"
+FEODO_CONFIDENCE = 90
+IPV4_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 THREAT_HEADERS = ["ip", "reason", "confidence", "timestamp"]
 HASH_HEADERS = ["sha256", "description"]
@@ -41,6 +45,8 @@ DEFAULT_FEEDS_CONFIG = {
     "ipsum_last_count": 0,
     "bazaar_last_sync": None,
     "bazaar_last_count": 0,
+    "feodo_last_sync": None,
+    "feodo_last_count": 0,
 }
 
 
@@ -149,6 +155,66 @@ def update_ipsum(min_lists=None):
 
     print(f"[FEEDS] IPsum import: {added} IPs at tier >= {min_lists}")
     return {"ok": True, "count": added, "min_lists": min_lists}
+
+
+def _merge_ip_feed(feed_entries, reason_prefix, last_sync_key, last_count_key):
+    """Rewrite threat_list.csv: keep other feeds/manual rows, replace this feed's set."""
+    preserved = []
+    if THREAT_LOG.exists():
+        try:
+            with open(THREAT_LOG, newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if not (row.get("reason") or "").startswith(reason_prefix):
+                        preserved.append(row)
+        except Exception as e:
+            print(f"[FEEDS] Could not read existing threat list: {e}")
+
+    preserved_ips = {row.get("ip") for row in preserved}
+    timestamp = _now()
+    added = 0
+
+    with open(THREAT_LOG, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(THREAT_HEADERS)
+        for row in preserved:
+            writer.writerow([row.get("ip", ""), row.get("reason", ""),
+                             row.get("confidence", ""), row.get("timestamp", "")])
+        for ip, reason, confidence in feed_entries:
+            if ip in preserved_ips:
+                continue
+            writer.writerow([ip, reason, confidence, timestamp])
+            added += 1
+
+    config = load_feeds_config()
+    config[last_sync_key] = timestamp
+    config[last_count_key] = added
+    save_feeds_config(config)
+    return added
+
+
+def update_feodo():
+    """Fetch Feodo Tracker's recommended botnet C2 IP list into threat_list.csv."""
+    try:
+        response = requests.get(FEODO_URL, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+    except Exception as e:
+        return {"ok": False, "error": f"Could not reach Feodo Tracker: {e}"}
+
+    entries = []
+    for line in response.text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        ip = line.split(",")[0].strip()
+        if IPV4_RE.match(ip):
+            entries.append((ip, FEODO_REASON, FEODO_CONFIDENCE))
+
+    if not entries:
+        return {"ok": False, "error": "Feodo Tracker returned no usable IPs (format may have changed)."}
+
+    added = _merge_ip_feed(entries, FEODO_REASON, "feodo_last_sync", "feodo_last_count")
+    print(f"[FEEDS] Feodo import: {added} C2 IPs")
+    return {"ok": True, "count": added}
 
 
 def _extract_sha256_rows(csv_text):

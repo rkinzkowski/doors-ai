@@ -963,6 +963,21 @@
                     </form>
                 </div>
 
+                <h3 style="margin-top: 18px;">Botnet Command Servers (Feodo Tracker)</h3>
+                <p class="muted">
+                    A free, no-signup list of addresses running known botnet command-and-control servers (the machines malware phones home to). Added to your threat list at high confidence.
+                    {% if feeds.feodo_last_sync %}
+                        Last updated {{ feeds.feodo_last_sync }} ({{ feeds.feodo_last_count }} addresses).
+                    {% else %}
+                        Not synced yet.
+                    {% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/feeds/update-feodo" method="post">
+                        <button class="primary" type="submit">Update from Feodo Tracker</button>
+                    </form>
+                </div>
+
                 <h3 style="margin-top: 18px;">Malware Fingerprints (MalwareBazaar)</h3>
                 <p class="muted">
                     Free SHA256 fingerprints of recently-seen malware from abuse.ch. This feed needs a free Auth-Key: create one at <span class="mono" style="max-width:none;">auth.abuse.ch</span>, then paste it below (it's stored only on this PC).
