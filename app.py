@@ -63,9 +63,11 @@ from monitor.scheduler import (
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
+    save_virustotal_key,
     update_feodo,
     update_ipsum,
     update_malware_hashes,
+    vt_lookup,
 )
 
 app = Flask(__name__)
@@ -1260,6 +1262,7 @@ def home():
         "bazaar_last_count": feeds_config.get("bazaar_last_count", 0),
         "feodo_last_sync": feeds_config.get("feodo_last_sync"),
         "feodo_last_count": feeds_config.get("feodo_last_count", 0),
+        "vt_has_key": bool(feeds_config.get("virustotal_api_key")),
     }
 
     return render_template(
@@ -1687,6 +1690,39 @@ def feeds_update_hashes():
         flash("MalwareBazaar rejected that Auth-Key. Double-check it at auth.abuse.ch.", "error")
     else:
         flash(f"MalwareBazaar update failed: {result['error']}", "error")
+
+    return redirect(url_for("home"))
+
+
+@app.route("/vt/save-key", methods=["POST"])
+def vt_save_key():
+    save_virustotal_key(request.form.get("api_key", ""))
+    flash("VirusTotal key saved.", "success")
+    return redirect(url_for("home"))
+
+
+@app.route("/vt/check", methods=["POST"])
+def vt_check():
+    sha256 = request.form.get("sha256", "").strip()
+    filename = request.form.get("filename", "").strip() or "That file"
+    result = vt_lookup(sha256)
+
+    if not result["ok"]:
+        if result["error"] == "auth_required":
+            flash("Add a free VirusTotal API key (in Threat Intelligence Feeds) to use this.", "info")
+        elif result["error"] == "auth_rejected":
+            flash("VirusTotal rejected that API key - check it at virustotal.com.", "error")
+        else:
+            flash(f"VirusTotal lookup failed: {result['error']}", "error")
+    elif not result.get("found"):
+        flash(f"{filename} is not known to VirusTotal (no engines have seen this fingerprint).", "info")
+    else:
+        verdict = "success" if result["malicious"] == 0 else "error"
+        flash(
+            f"{filename}: {result['malicious']} of {result['total']} VirusTotal engines flag it as malicious"
+            f"{' (' + str(result['suspicious']) + ' suspicious)' if result['suspicious'] else ''}.",
+            verdict,
+        )
 
     return redirect(url_for("home"))
 

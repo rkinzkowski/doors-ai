@@ -47,6 +47,7 @@ DEFAULT_FEEDS_CONFIG = {
     "bazaar_last_count": 0,
     "feodo_last_sync": None,
     "feodo_last_count": 0,
+    "virustotal_api_key": "",
 }
 
 
@@ -215,6 +216,59 @@ def update_feodo():
     added = _merge_ip_feed(entries, FEODO_REASON, "feodo_last_sync", "feodo_last_count")
     print(f"[FEEDS] Feodo import: {added} C2 IPs")
     return {"ok": True, "count": added}
+
+
+VT_URL = "https://www.virustotal.com/api/v3/files/{sha256}"
+
+
+def save_virustotal_key(api_key):
+    config = load_feeds_config()
+    config["virustotal_api_key"] = (api_key or "").strip()
+    save_feeds_config(config)
+
+
+def vt_lookup(sha256, api_key=None):
+    """Look up a file hash on VirusTotal. Only the hash is sent, never the file."""
+    sha256 = (sha256 or "").strip().lower()
+    if not SHA256_RE.match(sha256):
+        return {"ok": False, "error": "That isn't a valid SHA256 fingerprint."}
+
+    config = load_feeds_config()
+    api_key = (api_key if api_key is not None else config.get("virustotal_api_key", "")).strip()
+    if not api_key:
+        return {"ok": False, "error": "auth_required"}
+
+    try:
+        response = requests.get(
+            VT_URL.format(sha256=sha256),
+            headers={"x-apikey": api_key},
+            timeout=REQUEST_TIMEOUT,
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"Could not reach VirusTotal: {e}"}
+
+    if response.status_code == 404:
+        return {"ok": True, "found": False}
+    if response.status_code in (401, 403):
+        return {"ok": False, "error": "auth_rejected"}
+    if response.status_code == 429:
+        return {"ok": False, "error": "Rate limit reached (free keys allow ~4 lookups/minute). Try again shortly."}
+    if response.status_code != 200:
+        return {"ok": False, "error": f"VirusTotal returned HTTP {response.status_code}"}
+
+    try:
+        stats = response.json()["data"]["attributes"]["last_analysis_stats"]
+    except (KeyError, ValueError):
+        return {"ok": False, "error": "Could not parse VirusTotal response."}
+
+    malicious = stats.get("malicious", 0)
+    suspicious = stats.get("suspicious", 0)
+    total = sum(v for v in stats.values() if isinstance(v, int))
+    return {
+        "ok": True, "found": True,
+        "malicious": malicious, "suspicious": suspicious, "total": total,
+        "permalink": f"https://www.virustotal.com/gui/file/{sha256}",
+    }
 
 
 def _extract_sha256_rows(csv_text):
