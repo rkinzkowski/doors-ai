@@ -55,6 +55,11 @@ from monitor.network_monitor import get_network_snapshot
 from monitor.mitre import tag_technique
 from monitor.defender import get_defender_status
 from monitor.notify import set_enabled as set_notify_enabled, is_enabled as notify_enabled
+from monitor.scheduler import (
+    load_scheduler_config,
+    set_scheduler_option,
+    start_scheduler_thread,
+)
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -159,6 +164,18 @@ def login():
 def logout():
     session.pop("authed", None)
     return redirect(url_for("login"))
+
+
+@app.route("/schedule/update", methods=["POST"])
+def schedule_update():
+    for key in ("auto_scan", "auto_feeds"):
+        if request.form.get(key) is not None:
+            set_scheduler_option(key, request.form.get(key) == "1")
+    for key in ("scan_interval_hours", "feed_interval_hours"):
+        if request.form.get(key):
+            set_scheduler_option(key, request.form.get(key))
+    flash("Automation settings saved.", "success")
+    return redirect(url_for("home"))
 
 
 @app.route("/security/notifications", methods=["POST"])
@@ -1270,6 +1287,7 @@ def home():
         publisher_lists=publisher_lists,
         security_locked=bool(load_security_config().get("passphrase")),
         notifications_enabled=notify_enabled(),
+        schedule=load_scheduler_config(),
     )
 
 
@@ -1696,6 +1714,7 @@ if __name__ == "__main__":
     start_process_monitor_thread()
     start_endpoint_monitor_thread()
     start_login_import_thread()
+    start_scheduler_thread()
     # Bind to localhost only: the dashboard can terminate programs and delete
     # files, so it must never be reachable from the network.
     app.run(host="127.0.0.1", debug=True, use_reloader=False)
