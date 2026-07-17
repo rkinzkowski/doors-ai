@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import psutil
+import requests
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 THREAT_LOG = ROOT_DIR / "threat_list.csv"
@@ -40,7 +41,39 @@ _RANDOM_LABEL = re.compile(r"[a-z0-9]{16,}")
 _threat_cache = {"mtime": 0, "ips": {}}
 _dns_cache = {"time": 0, "records": [], "error": None}
 _conn_seen = {}
+_ipapi_cache = {}
+_enrichment_enabled = False
 _lock = threading.Lock()
+
+
+def set_enrichment_enabled(value):
+    global _enrichment_enabled
+    _enrichment_enabled = bool(value)
+
+
+def enrichment_enabled():
+    return _enrichment_enabled
+
+
+def ip_reputation(ip):
+    """Opt-in: look up an IP's ISP + whether it's a proxy/hosting/data-center."""
+    if ip in _ipapi_cache:
+        return _ipapi_cache[ip]
+    out = {}
+    try:
+        r = requests.get(
+            f"http://ip-api.com/json/{ip}?fields=status,proxy,hosting,isp,org,countryCode",
+            timeout=5,
+        )
+        d = r.json()
+        if d.get("status") == "success":
+            out = {"proxy": d.get("proxy"), "hosting": d.get("hosting"),
+                   "isp": d.get("isp", ""), "org": d.get("org", ""),
+                   "country": d.get("countryCode", "")}
+    except Exception:
+        out = {}
+    _ipapi_cache[ip] = out
+    return out
 
 
 def _load_threat_ips():
@@ -113,6 +146,14 @@ def get_active_connections(limit=200):
     baseline = _load_conn_baseline() or set()
     for r in rows:
         r["new"] = r["public"] and f"{(r['process'] or '').lower()}|{r['remote_ip']}" not in baseline
+        r["isp"] = ""
+        if _enrichment_enabled and r["flagged"]:
+            rep = ip_reputation(r["remote_ip"])
+            r["isp"] = rep.get("isp", "")
+            if rep.get("proxy"):
+                r["isp"] += " (proxy/VPN)"
+            elif rep.get("hosting"):
+                r["isp"] += " (data center)"
 
     rows.sort(key=lambda r: (not r["flagged"], not r["new"], not r["public"]))
     flagged = [r for r in rows if r["flagged"]]

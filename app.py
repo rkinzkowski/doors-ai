@@ -72,6 +72,8 @@ from monitor.net_intel import (
     get_network_activity,
     reset_conn_baseline,
     reset_device_baseline,
+    set_enrichment_enabled,
+    enrichment_enabled,
     start_connection_monitor_thread,
 )
 from monitor.catalog import describe_endpoint_change, describe_process
@@ -273,6 +275,21 @@ def schedule_update():
         if request.form.get(key):
             set_scheduler_option(key, request.form.get(key))
     flash("Automation settings saved.", "success")
+    return redirect(url_for("home"))
+
+
+@app.route("/security/ip-enrichment", methods=["POST"])
+def toggle_ip_enrichment():
+    cfg = load_security_config()
+    new_value = request.form.get("enabled") == "1"
+    cfg["ip_enrichment"] = new_value
+    save_security_config(cfg)
+    set_enrichment_enabled(new_value)
+    flash(
+        f"Look up who owns flagged addresses: turned {'on' if new_value else 'off'}."
+        + (" This makes a small internet lookup when an address is flagged." if new_value else ""),
+        "success",
+    )
     return redirect(url_for("home"))
 
 
@@ -1455,6 +1472,7 @@ def home():
         publisher_lists=publisher_lists,
         security_locked=bool(load_security_config().get("passphrase")),
         notifications_enabled=notify_enabled(),
+        ip_enrichment_enabled=enrichment_enabled(),
         schedule=load_scheduler_config(),
         trend_days=trend_days,
         trend_max=trend_max,
@@ -1935,6 +1953,7 @@ def hashdb_add():
 
 if __name__ == "__main__":
     set_notify_enabled(load_security_config().get("notifications", True))
+    set_enrichment_enabled(load_security_config().get("ip_enrichment", False))
     initialize_runtime_files()
     ensure_model()
     load_recent_process_alerts()
