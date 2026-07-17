@@ -1220,22 +1220,26 @@
                         <tr>
                             <th>When</th>
                             <th>Severity</th>
-                            <th>Kind</th>
-                            <th>What Changed</th>
-                            <th>Details</th>
-                            <th>Why It Matters</th>
+                            <th>What changed</th>
+                            <th>What this means</th>
+                            <th>Technical detail</th>
                         </tr>
                         {% for entry in endpoint_logs %}
                         <tr>
                             <td>{{ entry.timestamp }}</td>
                             <td><span class="badge {{ entry.severity }}">{{ entry.severity }}</span></td>
-                            <td>{{ {'registry': 'Startup entry', 'startup': 'Startup folder', 'task': 'Scheduled task', 'service': 'Service', 'ransomware': 'Ransomware signal'}.get(entry.category, entry.category) }}</td>
-                            <td>{{ entry.name }}</td>
-                            <td class="mono" title="{{ entry.detail }}">{{ entry.detail }}</td>
-                            <td>{{ entry.reason }}{% if entry.mitre %}<span class="mitre" title="MITRE ATT&CK: {{ entry.mitre.name }}">{{ entry.mitre.id }}</span>{% endif %}</td>
+                            <td>
+                                A new <strong>{{ entry.kind_plain }}</strong> appeared: <strong>{{ entry.clean_name }}</strong>
+                                {% if not entry.recognized %}<br><span class="badge medium" title="Doors AI doesn't recognize this - if you didn't just install something, look it up">unrecognized</span>{% endif %}
+                            </td>
+                            <td style="max-width: 400px; white-space: normal;">
+                                {{ entry.what_plain }}
+                                {% if entry.mitre %}<span class="mitre" title="MITRE ATT&CK: {{ entry.mitre.name }}">{{ entry.mitre.id }}</span>{% endif %}
+                            </td>
+                            <td class="mono" title="{{ entry.detail }}">{{ entry.name }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="empty">No changes detected &mdash; your startup programs, tasks, and services all match the trusted setup.</td></tr>
+                        <tr><td colspan="5" class="empty">No changes detected &mdash; your startup programs, tasks, and services all match the trusted setup.</td></tr>
                         {% endfor %}
                     </table>
                 </div>
@@ -1258,9 +1262,12 @@
                 <p class="muted">Local checks for common ways a PC gets exposed. Fix the red ones first.</p>
                 <ul class="plain">
                     {% for v in vulnerabilities %}
-                    <li>
-                        <span><span class="badge {{ v.severity }}">{{ v.severity }}</span> {{ v.title }}</span>
-                        <span class="muted">{{ v.fix }}</span>
+                    <li style="align-items: flex-start;">
+                        <span style="max-width: 62%;">
+                            <span class="badge {{ v.severity }}">{{ v.severity }}</span> <strong>{{ v.title }}</strong>
+                            {% if v.what %}<br><span class="muted">{{ v.what }}</span>{% endif %}
+                        </span>
+                        <span class="muted" style="text-align: right;">{{ v.fix }}</span>
                     </li>
                     {% else %}
                     <li><span class="badge low">good</span> No obvious weak spots found.</li>
@@ -1310,15 +1317,20 @@
                         <tr>
                             <th>Severity</th>
                             <th class="num">Port</th>
-                            <th>Who Can Reach It</th>
-                            <th>What It's For</th>
                             <th>Program</th>
+                            <th>What it is &amp; why it's running</th>
+                            <th>Who Can Reach It</th>
                             <th>Your Call</th>
                         </tr>
                         {% for port in network.ports %}
                         <tr>
                             <td><span class="badge {{ port.severity }}">{{ port.severity }}</span></td>
                             <td class="num">{{ port.port }}</td>
+                            <td>
+                                {{ port.process or 'unknown' }}{% if port.pid %} <span class="muted">(PID {{ port.pid }})</span>{% endif %}
+                                {% if not port.recognized %}<br><span class="badge medium" title="Doors AI doesn't recognize this - worth checking even though it isn't flagged as a threat">unrecognized</span>{% endif %}
+                            </td>
+                            <td style="max-width: 420px; white-space: normal;">{{ port.description }}</td>
                             <td>
                                 {% if port.binding == 'all interfaces' %}
                                     Anyone on your network
@@ -1328,8 +1340,6 @@
                                     Only this PC
                                 {% endif %}
                             </td>
-                            <td>{{ port.service or '-' }}</td>
-                            <td>{{ port.process or 'unknown' }}{% if port.pid %} <span class="muted">(PID {{ port.pid }})</span>{% endif %}</td>
                             <td>
                                 {% if port.exe %}
                                 <form action="/system/open-location" method="post">
@@ -1362,16 +1372,19 @@
                     <table>
                         <tr>
                             <th>Address</th>
-                            <th>Maker</th>
+                            <th>What it likely is</th>
                             <th>Hardware ID (MAC)</th>
                             <th>Status</th>
                         </tr>
                         {% for device in network.devices %}
                         <tr>
                             <td class="mono">{{ device.ip }}</td>
-                            <td>{{ device.vendor or '&mdash;' | safe }}</td>
+                            <td style="max-width: 420px; white-space: normal;">
+                                {{ device.identity }}
+                                {% if not device.recognized %}<br><span class="badge medium" title="Doors AI can't identify this device - worth confirming it's yours">unrecognized</span>{% endif %}
+                            </td>
                             <td class="mono">{{ device.mac }}</td>
-                            <td>{% if device.mac in new_macs %}<span class="badge medium">new</span>{% else %}<span class="muted">known</span>{% endif %}</td>
+                            <td>{% if device.is_gateway %}<span class="badge low">router</span>{% elif device.mac in new_macs %}<span class="badge medium">new</span>{% else %}<span class="muted">known</span>{% endif %}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="4" class="empty">No devices seen recently.</td></tr>

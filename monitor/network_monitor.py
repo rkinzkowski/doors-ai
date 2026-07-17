@@ -155,6 +155,9 @@ def _collect_listening_ports():
         if severity != "low" and loopback:
             severity = "medium" if severity == "high" else "low"
 
+        from monitor.catalog import describe_port
+        info = describe_port(port, process_name, service)
+
         ports.append({
             "port": port,
             "address": address,
@@ -164,6 +167,8 @@ def _collect_listening_ports():
             "exe": exe_path,
             "service": service,
             "severity": severity,
+            "description": info["description"],
+            "recognized": info["known"],
         })
 
     ports.sort(key=lambda p: (p["severity"] != "high", p["severity"] != "medium", p["port"]))
