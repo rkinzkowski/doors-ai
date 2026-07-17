@@ -65,12 +65,14 @@ from monitor.correlation import get_incidents
 from monitor.net_intel import (
     assess_vulnerabilities,
     check_new_devices,
+    enrich_devices,
     get_active_connections,
     get_dns_cache,
     get_firewall_status,
     reset_device_baseline,
     start_connection_monitor_thread,
 )
+from monitor.catalog import describe_endpoint_change, describe_process
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -1306,6 +1308,11 @@ def home():
         endpoint_records = df_endpoint.to_dict(orient="records")
         for entry in endpoint_records:
             entry["mitre"] = tag_technique(entry.get("reason"), entry.get("category"), entry.get("detail"))
+            plain = describe_endpoint_change(entry.get("category", ""), entry.get("name", ""), entry.get("detail", ""))
+            entry["clean_name"] = plain["clean_name"]
+            entry["kind_plain"] = plain["kind"]
+            entry["what_plain"] = plain["what"]
+            entry["recognized"] = plain["recognized"]
     except Exception as e:
         print(f"[ERROR] Failed to load endpoint logs: {e}")
 
@@ -1394,6 +1401,7 @@ def home():
         print(f"[ERROR] Vulnerability assessment failed: {e}")
         firewall, vulnerabilities = {"profiles": []}, []
     try:
+        enrich_devices(network.get("devices", []))
         new_devices = check_new_devices(network.get("devices", []))
     except Exception as e:
         print(f"[ERROR] New-device check failed: {e}")

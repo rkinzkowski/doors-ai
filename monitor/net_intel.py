@@ -226,6 +226,8 @@ def get_firewall_status():
 
 def assess_vulnerabilities(network, defender):
     """Combine local signals into plain-language self-exposure findings."""
+    from monitor.catalog import describe_port
+
     findings = []
     fw = get_firewall_status()
     for prof in fw.get("profiles", []):
@@ -233,6 +235,7 @@ def assess_vulnerabilities(network, defender):
             findings.append({
                 "severity": "high",
                 "title": f"Firewall is OFF for the {prof['name']} network",
+                "what": "Your firewall is the wall that blocks unwanted connections from reaching this PC. With it off, anything on this network can try to reach you directly.",
                 "fix": "Turn Windows Firewall back on in Windows Security.",
             })
 
@@ -240,18 +243,22 @@ def assess_vulnerabilities(network, defender):
     for port in network.get("ports", []):
         if port["severity"] == "high" and port["binding"] != "localhost only" and port["port"] not in seen_ports:
             seen_ports.add(port["port"])
+            info = describe_port(port["port"], port.get("process", ""), port.get("service", ""))
             findings.append({
                 "severity": "high",
-                "title": f"{port['service'] or 'Port ' + str(port['port'])} is reachable from your network",
+                "title": f"{info['label']} is reachable from your network",
+                "what": info["description"],
                 "fix": f"Turn off port {port['port']} if you don't use it.",
             })
 
     if defender and defender.get("available"):
         if not defender.get("antivirus_enabled"):
             findings.append({"severity": "critical", "title": "Windows Defender antivirus is off",
+                             "what": "Windows' built-in antivirus is your baseline protection. With it off, known malware can run unchecked.",
                              "fix": "Turn it on in Windows Security."})
         elif not defender.get("realtime_enabled"):
             findings.append({"severity": "high", "title": "Defender real-time protection is off",
+                             "what": "Real-time protection is the part of the antivirus that checks files as they open. Without it, threats are only caught during a manual scan.",
                              "fix": "Turn on real-time protection in Windows Security."})
 
     order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -275,6 +282,33 @@ def _save_device_baseline(macs):
             json.dump(sorted(macs), f, indent=2)
     except Exception as e:
         print(f"[NETINTEL] Could not save device baseline: {e}")
+
+
+def _gateway_ip():
+    """Best-effort: the .1 of the private subnet is almost always the router."""
+    try:
+        completed = subprocess.run(["ipconfig"], capture_output=True, text=True,
+                                   errors="replace", timeout=10)
+        for line in completed.stdout.splitlines():
+            if "default gateway" in line.lower() and ":" in line:
+                gw = line.split(":", 1)[1].strip()
+                if gw and gw.count(".") == 3:
+                    return gw
+    except Exception:
+        pass
+    return ""
+
+
+def enrich_devices(devices):
+    """Add a plain-language identity to each device (maker, kind, gateway)."""
+    from monitor.catalog import describe_device
+    gw = _gateway_ip()
+    for d in devices:
+        info = describe_device(d.get("vendor", ""), d.get("ip", ""), is_gateway=(d.get("ip") == gw))
+        d["identity"] = info["kind"]
+        d["recognized"] = info["known"]
+        d["is_gateway"] = d.get("ip") == gw
+    return devices
 
 
 def check_new_devices(devices):
