@@ -1289,7 +1289,7 @@
                             <td>{{ c.process or 'unknown' }}{% if c.pid %} <span class="muted">(PID {{ c.pid }})</span>{% endif %}</td>
                             <td class="mono">{{ c.remote_ip }}</td>
                             <td class="num">{{ c.remote_port }}</td>
-                            <td>{{ c.reason or ('First-time destination' if c.new else 'External server' if c.public else 'On your network') }}</td>
+                            <td>{{ c.reason or ('First-time destination' if c.new else 'External server' if c.public else 'On your network') }}{% if c.isp %} <span class="muted">&mdash; {{ c.isp }}</span>{% endif %}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="5" class="empty">No active connections.</td></tr>
@@ -1572,6 +1572,16 @@
                         <form action="/security/notifications" method="post">
                             <input type="hidden" name="enabled" value="{{ '0' if notifications_enabled else '1' }}">
                             <button type="submit">{{ 'Turn Off' if notifications_enabled else 'Turn On' }}</button>
+                        </form>
+                    </li>
+                    <li>
+                        <span>
+                            {% if ip_enrichment_enabled %}<span class="badge low">on</span>{% else %}<span class="badge medium">off</span>{% endif %}
+                            Look up who owns flagged addresses (small internet lookup, only when an address is flagged)
+                        </span>
+                        <form action="/security/ip-enrichment" method="post">
+                            <input type="hidden" name="enabled" value="{{ '0' if ip_enrichment_enabled else '1' }}">
+                            <button type="submit">{{ 'Turn Off' if ip_enrichment_enabled else 'Turn On' }}</button>
                         </form>
                     </li>
                 </ul>
