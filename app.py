@@ -69,6 +69,8 @@ from monitor.net_intel import (
     get_active_connections,
     get_dns_cache,
     get_firewall_status,
+    get_network_activity,
+    reset_conn_baseline,
     reset_device_baseline,
     start_connection_monitor_thread,
 )
@@ -1395,6 +1397,11 @@ def home():
         print(f"[ERROR] DNS cache failed: {e}")
         dns = {"records": [], "error": str(e)}
     try:
+        net_activity = get_network_activity()
+    except Exception as e:
+        print(f"[ERROR] Network activity failed: {e}")
+        net_activity = {"total_sent": "0 B", "total_recv": "0 B", "programs": []}
+    try:
         firewall = get_firewall_status()
         vulnerabilities = assess_vulnerabilities(network, defender)
     except Exception as e:
@@ -1455,6 +1462,7 @@ def home():
         incidents=incidents,
         connections=connections,
         dns=dns,
+        net_activity=net_activity,
         vulnerabilities=vulnerabilities,
         new_devices=new_devices,
     )
@@ -1748,6 +1756,15 @@ def network_reset_devices():
         flash("Network device list reset. Current devices are now the trusted baseline.", "success")
     else:
         flash("Could not reset the device baseline.", "error")
+    return redirect(url_for("home"))
+
+
+@app.route("/network/reset-connections", methods=["POST"])
+def network_reset_connections():
+    if reset_conn_baseline():
+        flash("Current connections marked as normal. Only new destinations will be flagged from now on.", "success")
+    else:
+        flash("Could not reset the connection baseline.", "error")
     return redirect(url_for("home"))
 
 

@@ -1275,20 +1275,41 @@
                 </ul>
 
                 <h3 style="margin-top: 18px;">Active Connections</h3>
-                <p class="muted">Programs currently talking to other computers. A flagged row means a program is contacting an address on your threat list &mdash; investigate it.</p>
+                <p class="muted">
+                    Programs currently talking to other computers. <strong>Flagged</strong> = contacting an address on your threat list. <strong>New</strong> = a program reached this server for the first time.
+                    <a href="#" onclick="document.getElementById('reset-conns').submit();return false;">Mark all current connections as normal</a>.
+                </p>
+                <form id="reset-conns" action="/network/reset-connections" method="post" style="display:none;"></form>
                 <div class="table-scroll">
                     <table>
                         <tr><th>Status</th><th>Program</th><th>Talking To</th><th class="num">Port</th><th>Notes</th></tr>
                         {% for c in connections.connections[:40] %}
                         <tr>
-                            <td>{% if c.flagged %}<span class="badge critical">flagged</span>{% elif c.public %}<span class="badge low">external</span>{% else %}<span class="muted">local</span>{% endif %}</td>
+                            <td>{% if c.flagged %}<span class="badge critical">flagged</span>{% elif c.new %}<span class="badge medium">new</span>{% elif c.public %}<span class="badge low">external</span>{% else %}<span class="muted">local</span>{% endif %}</td>
                             <td>{{ c.process or 'unknown' }}{% if c.pid %} <span class="muted">(PID {{ c.pid }})</span>{% endif %}</td>
                             <td class="mono">{{ c.remote_ip }}</td>
                             <td class="num">{{ c.remote_port }}</td>
-                            <td>{{ c.reason or ('External server' if c.public else 'On your network') }}</td>
+                            <td>{{ c.reason or ('First-time destination' if c.new else 'External server' if c.public else 'On your network') }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="5" class="empty">No active connections.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 18px;">Network Activity by Program</h3>
+                <p class="muted">Total data since startup: <strong>{{ net_activity.total_sent }}</strong> sent, <strong>{{ net_activity.total_recv }}</strong> received. Programs below are ranked by how many live connections they hold (a stand-in for how network-active they are).</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr><th>Program</th><th class="num">External connections</th><th class="num">Total connections</th></tr>
+                        {% for p in net_activity.programs %}
+                        <tr>
+                            <td>{{ p.name }}</td>
+                            <td class="num">{{ p.external }}</td>
+                            <td class="num">{{ p.total }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="empty">No active network programs.</td></tr>
                         {% endfor %}
                     </table>
                 </div>
@@ -1380,8 +1401,9 @@
                         <tr>
                             <td class="mono">{{ device.ip }}</td>
                             <td style="max-width: 420px; white-space: normal;">
+                                {% if device.hostname %}<strong>{{ device.hostname }}</strong><br>{% endif %}
                                 {{ device.identity }}
-                                {% if not device.recognized %}<br><span class="badge medium" title="Doors AI can't identify this device - worth confirming it's yours">unrecognized</span>{% endif %}
+                                {% if not device.recognized and not device.hostname %}<br><span class="badge medium" title="Doors AI can't identify this device - worth confirming it's yours">unrecognized</span>{% endif %}
                             </td>
                             <td class="mono">{{ device.mac }}</td>
                             <td>{% if device.is_gateway %}<span class="badge low">router</span>{% elif device.mac in new_macs %}<span class="badge medium">new</span>{% else %}<span class="muted">known</span>{% endif %}</td>

@@ -29,3 +29,5 @@ security_config.json
 scheduler_config.json
 events.db
 network_devices_baseline.json
+connection_baseline.json
+net_state.json
