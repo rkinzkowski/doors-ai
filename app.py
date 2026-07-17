@@ -72,6 +72,7 @@ from monitor.net_intel import (
     get_network_activity,
     reset_conn_baseline,
     reset_device_baseline,
+    scan_host,
     set_enrichment_enabled,
     enrichment_enabled,
     start_connection_monitor_thread,
@@ -1774,6 +1775,45 @@ def network_reset_devices():
         flash("Network device list reset. Current devices are now the trusted baseline.", "success")
     else:
         flash("Could not reset the device baseline.", "error")
+    return redirect(url_for("home"))
+
+
+@app.route("/connection/contain", methods=["POST"])
+def connection_contain():
+    ip = request.form.get("remote_ip", "").strip()
+    pid_raw = request.form.get("pid", "").strip()
+    done = []
+
+    if ip:
+        block_ip(ip)
+        log_threat(ip, "Contained: bad connection", 90)
+        done.append(f"blocked {ip} in the firewall")
+    if pid_raw:
+        try:
+            proc = psutil.Process(int(pid_raw))
+            name = proc.name()
+            proc.terminate()
+            done.append(f"stopped {name}")
+        except Exception as e:
+            flash(f"Blocked the address, but couldn't stop the program: {e}", "error")
+            return redirect(url_for("home"))
+
+    if done:
+        flash("Contained: " + " and ".join(done) + ". Firewall changes need administrator rights to take effect.", "success")
+    return redirect(url_for("home"))
+
+
+@app.route("/network/scan-device", methods=["POST"])
+def network_scan_device():
+    ip = request.form.get("ip", "").strip()
+    result = scan_host(ip)
+    if not result["ok"]:
+        flash(result["error"], "error")
+    elif result["open"]:
+        ports = ", ".join(f"{p['port']} ({p['name']})" for p in result["open"])
+        flash(f"{ip} has these ports open: {ports}. Close any you don't expect.", "info")
+    else:
+        flash(f"{ip} has none of the common remote-access ports open - good.", "success")
     return redirect(url_for("home"))
 
 

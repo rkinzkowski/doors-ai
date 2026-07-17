@@ -306,6 +306,75 @@ def check_connections_now():
     except Exception as e:
         print(f"[NETINTEL] ARP check error: {e}")
 
+    try:
+        check_exposure_change()
+    except Exception as e:
+        print(f"[NETINTEL] Exposure check error: {e}")
+
+
+def check_exposure_change():
+    """Alert when a program starts accepting network connections it wasn't before."""
+    from monitor.network_monitor import get_network_snapshot
+    ports = get_network_snapshot().get("ports", [])
+    exposed = {f"{p['port']}|{(p.get('process') or '').lower()}"
+               for p in ports if p.get("binding") == "all interfaces"}
+
+    state = _load_net_state()
+    if "exposed_ports" not in state:
+        state["exposed_ports"] = sorted(exposed)
+        _save_net_state(state)
+        return
+
+    known = set(state.get("exposed_ports", []))
+    new = exposed - known
+    if new:
+        for item in new:
+            port, _, proc = item.partition("|")
+            try:
+                from monitor.events_db import record_event
+                record_event("network:exposure", "high",
+                             f"{proc or 'A program'} started accepting network connections",
+                             f"Port {port} is now reachable from your network")
+            except Exception:
+                pass
+        state["exposed_ports"] = sorted(known | exposed)
+        _save_net_state(state)
+
+
+# Common remote-access / service ports to check in an opt-in device scan.
+SCAN_PORTS = {
+    21: "FTP", 22: "SSH", 23: "Telnet", 80: "Web", 135: "Windows RPC",
+    139: "NetBIOS", 443: "Secure web", 445: "SMB file sharing",
+    3389: "Remote Desktop", 5900: "VNC", 8080: "Web (alt)",
+}
+
+
+def scan_host(ip):
+    """Opt-in: check one device on your own network for open common ports.
+
+    Active (sends connection attempts) - only ever called from a user click.
+    """
+    import socket
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return {"ok": False, "error": "That isn't a valid address."}
+    if not (addr.is_private or addr.is_loopback):
+        return {"ok": False, "error": "Only devices on your own network can be checked."}
+
+    open_ports = []
+    for port, name in SCAN_PORTS.items():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.4)
+        try:
+            if s.connect_ex((ip, port)) == 0:
+                open_ports.append({"port": port, "name": name})
+        except Exception:
+            pass
+        finally:
+            s.close()
+    return {"ok": True, "ip": ip, "open": open_ports}
+
 
 def start_connection_monitor_thread():
     def loop():

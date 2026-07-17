@@ -1282,7 +1282,7 @@
                 <form id="reset-conns" action="/network/reset-connections" method="post" style="display:none;"></form>
                 <div class="table-scroll">
                     <table>
-                        <tr><th>Status</th><th>Program</th><th>Talking To</th><th class="num">Port</th><th>Notes</th></tr>
+                        <tr><th>Status</th><th>Program</th><th>Talking To</th><th class="num">Port</th><th>Notes</th><th>Your Call</th></tr>
                         {% for c in connections.connections[:40] %}
                         <tr>
                             <td>{% if c.flagged %}<span class="badge critical">flagged</span>{% elif c.new %}<span class="badge medium">new</span>{% elif c.public %}<span class="badge low">external</span>{% else %}<span class="muted">local</span>{% endif %}</td>
@@ -1290,9 +1290,18 @@
                             <td class="mono">{{ c.remote_ip }}</td>
                             <td class="num">{{ c.remote_port }}</td>
                             <td>{{ c.reason or ('First-time destination' if c.new else 'External server' if c.public else 'On your network') }}{% if c.isp %} <span class="muted">&mdash; {{ c.isp }}</span>{% endif %}</td>
+                            <td>
+                                {% if c.flagged %}
+                                <form action="/connection/contain" method="post" onsubmit="return confirm('Block {{ c.remote_ip }} in the firewall and stop {{ c.process or 'the program' }}? (Firewall block needs administrator rights.)');">
+                                    <input type="hidden" name="remote_ip" value="{{ c.remote_ip }}">
+                                    <input type="hidden" name="pid" value="{{ c.pid }}">
+                                    <button class="danger" type="submit" title="Block this address and stop the program">Contain</button>
+                                </form>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="empty">No active connections.</td></tr>
+                        <tr><td colspan="6" class="empty">No active connections.</td></tr>
                         {% endfor %}
                     </table>
                 </div>
@@ -1386,6 +1395,10 @@
                 <div class="tools">
                     <form action="/network/reset-devices" method="post" onsubmit="return confirm('Treat all currently-seen devices as trusted? New ones after this will be flagged.');">
                         <button type="submit">Trust Current Devices</button>
+                    </form>
+                    <form action="/network/scan-device" method="post" onsubmit="return confirm('Check this device for open remote-access ports? This sends a few connection attempts to that device on your own network.');">
+                        <input type="text" name="ip" placeholder="Device address to check, e.g. 192.168.86.20" style="width: 240px;">
+                        <button type="submit" title="Actively check one device on your network for open ports">Check Device Ports</button>
                     </form>
                 </div>
                 {% set new_macs = new_devices | map(attribute='mac') | list %}
