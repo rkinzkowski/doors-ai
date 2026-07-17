@@ -16,8 +16,11 @@ rule). Anything that would send packets to other machines is opt-in and marked.
 | DNS analysis | ✅ **Built** | Reads the local DNS cache, flags suspicious domains |
 | Threat-intel integration | ✅ **Built** | Connections + DNS checked against IPsum/Feodo/manual threat list |
 | Vulnerability assessment | ✅ **Built** | "Weak Spots" self-check (firewall, exposed ports, Defender) feeding the score |
-| Port scanning | ◑ **Partial** | Your own listening ports are done; scanning *other* devices is proposed (opt-in, below) |
-| VPN/proxy detection | ◑ **Partial** | Local VPN list + checks exist; live enrichment proposed below |
+| Port scanning | ✅ **Built (opt-in)** | Your own ports done; opt-in check of one device on your network added |
+| VPN/proxy detection | ✅ **Built (opt-in)** | Optional ISP/proxy/hosting lookup for flagged addresses |
+
+**Improvement proposals #1–#7 and #9 are now built.** #8 (packet capture) is
+parked — see below. The proposals section is kept for reference.
 
 ---
 
@@ -60,9 +63,13 @@ internet (not just the LAN), and alert if that changes.
 
 ### Bigger / later
 
-**8. Full packet-level traffic monitoring · L**
-Deep inspection of actual traffic (not just connection endpoints). Needs a
-capture driver (a download) and admin — parked until you're ready for that.
+**8. Full packet-level traffic monitoring · L — PARKED**
+Deep inspection of actual traffic (not just connection endpoints), including
+true per-program byte metering. Evaluated 2026-07-17: this requires a packet
+capture driver (Npcap) — a download plus an admin-level install — which your
+"nothing installed until we can protect against everything" rule keeps parked.
+Everything else in Phase 3 was built without it. Green-light the Npcap install
+whenever you want this and it becomes a quick add.
 
 **9. Auto-contain a bad connection · M**
 One-click (or automatic) firewall block of a program caught talking to a known
