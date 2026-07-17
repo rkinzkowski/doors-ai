@@ -1,0 +1,312 @@
+"""Phase 3 network intelligence — all passive, local reads.
+
+- Active connections cross-checked against the local threat list (catches
+  malware phoning home to a known-bad address)
+- DNS resolver cache, flagging suspicious domains
+- Firewall state and a local vulnerability / self-exposure assessment
+- New-device detection against a remembered baseline of the home network
+
+Nothing is scanned or transmitted; every function reads state that already
+exists on this machine.
+"""
+
+import csv
+import ipaddress
+import json
+import platform
+import re
+import subprocess
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+import psutil
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+THREAT_LOG = ROOT_DIR / "threat_list.csv"
+DEVICE_BASELINE = ROOT_DIR / "network_devices_baseline.json"
+
+CONN_POLL_SEC = 60
+DNS_TTL_SEC = 60
+
+# TLDs and patterns disproportionately used for throwaway malware domains.
+SUSPICIOUS_TLDS = {".xyz", ".top", ".tk", ".gq", ".ml", ".cf", ".ga",
+                   ".work", ".click", ".loan", ".rest", ".zip", ".mov"}
+_RANDOM_LABEL = re.compile(r"[a-z0-9]{16,}")
+
+_threat_cache = {"mtime": 0, "ips": {}}
+_dns_cache = {"time": 0, "records": [], "error": None}
+_conn_seen = {}
+_lock = threading.Lock()
+
+
+def _load_threat_ips():
+    try:
+        st = THREAT_LOG.stat()
+    except OSError:
+        return {}
+    if st.st_mtime == _threat_cache["mtime"] and _threat_cache["ips"]:
+        return _threat_cache["ips"]
+    ips = {}
+    try:
+        with open(THREAT_LOG, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                ip = (row.get("ip") or "").strip()
+                if ip:
+                    ips[ip] = row.get("reason") or "On your threat list"
+    except Exception as e:
+        print(f"[NETINTEL] Could not read threat list: {e}")
+    _threat_cache.update(mtime=st.st_mtime, ips=ips)
+    return ips
+
+
+def _is_public(ip):
+    try:
+        addr = ipaddress.ip_address(ip)
+        return not (addr.is_private or addr.is_loopback or addr.is_reserved
+                    or addr.is_multicast or addr.is_link_local)
+    except ValueError:
+        return False
+
+
+def get_active_connections(limit=200):
+    """Established outbound/inbound connections with owning process; bad ones flagged."""
+    threats = _load_threat_ips()
+    rows = []
+    seen = set()
+
+    try:
+        conns = psutil.net_connections(kind="inet")
+    except Exception as e:
+        return {"connections": [], "flagged": [], "error": str(e)}
+
+    for c in conns:
+        if c.status != psutil.CONN_ESTABLISHED or not c.raddr:
+            continue
+        rip = c.raddr.ip
+        key = (rip, c.raddr.port, c.pid)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        proc = ""
+        if c.pid:
+            try:
+                proc = psutil.Process(c.pid).name()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
+        reason = threats.get(rip, "")
+        rows.append({
+            "remote_ip": rip,
+            "remote_port": c.raddr.port,
+            "process": proc,
+            "pid": c.pid or "",
+            "public": _is_public(rip),
+            "flagged": bool(reason),
+            "reason": reason,
+        })
+
+    rows.sort(key=lambda r: (not r["flagged"], not r["public"]))
+    flagged = [r for r in rows if r["flagged"]]
+    return {"connections": rows[:limit], "flagged": flagged, "error": None}
+
+
+def check_connections_now():
+    """Background pass: alert on connections to known-bad addresses."""
+    data = get_active_connections()
+    for c in data.get("flagged", []):
+        sig = f"{c['remote_ip']}:{c['pid']}"
+        now = time.time()
+        with _lock:
+            if now - _conn_seen.get(sig, 0) < 600:
+                continue
+            _conn_seen[sig] = now
+        title = f"{c['process'] or 'A program'} contacted a flagged address"
+        detail = f"{c['remote_ip']}:{c['remote_port']} - {c['reason']}"
+        try:
+            from monitor.events_db import record_event
+            record_event("network:connection", "high", title, detail)
+        except Exception:
+            pass
+        try:
+            from monitor.notify import notify
+            notify("Doors AI: Suspicious connection", f"{title} ({c['remote_ip']})", key=sig)
+        except Exception:
+            pass
+
+
+def start_connection_monitor_thread():
+    def loop():
+        while True:
+            try:
+                check_connections_now()
+            except Exception as e:
+                print(f"[NETINTEL] Connection monitor error: {e}")
+            time.sleep(CONN_POLL_SEC)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
+def _domain_suspicious(domain):
+    d = domain.lower().rstrip(".")
+    for tld in SUSPICIOUS_TLDS:
+        if d.endswith(tld):
+            return f"Unusual domain ending ({tld})"
+    first_label = d.split(".")[0]
+    if _RANDOM_LABEL.search(first_label):
+        return "Random-looking domain name"
+    return ""
+
+
+def get_dns_cache(limit=150):
+    """Read the local DNS resolver cache (ipconfig /displaydns)."""
+    now = time.time()
+    with _lock:
+        if now - _dns_cache["time"] < DNS_TTL_SEC and _dns_cache["records"]:
+            return {"records": _dns_cache["records"], "error": _dns_cache["error"]}
+
+    if platform.system() != "Windows":
+        return {"records": [], "error": "Windows only"}
+
+    try:
+        completed = subprocess.run(
+            ["ipconfig", "/displaydns"],
+            capture_output=True, text=True, errors="replace", timeout=20,
+        )
+    except Exception as e:
+        return {"records": [], "error": str(e)}
+
+    names = []
+    seen = set()
+    for line in completed.stdout.splitlines():
+        if "Record Name" in line and ":" in line:
+            name = line.split(":", 1)[1].strip()
+            key = name.lower()
+            if name and key not in seen and "." in name:
+                seen.add(key)
+                names.append(name)
+
+    records = []
+    for name in names[:limit]:
+        reason = _domain_suspicious(name)
+        records.append({"domain": name, "suspicious": bool(reason), "reason": reason})
+    records.sort(key=lambda r: not r["suspicious"])
+
+    with _lock:
+        _dns_cache.update(time=now, records=records, error=None)
+    return {"records": records, "error": None}
+
+
+def get_firewall_status():
+    """Windows Firewall on/off state per profile."""
+    if platform.system() != "Windows":
+        return {"profiles": [], "error": "Windows only"}
+    try:
+        completed = subprocess.run(
+            ["netsh", "advfirewall", "show", "allprofiles", "state"],
+            capture_output=True, text=True, errors="replace", timeout=20,
+        )
+    except Exception as e:
+        return {"profiles": [], "error": str(e)}
+
+    profiles = []
+    current = None
+    for line in completed.stdout.splitlines():
+        low = line.strip().lower()
+        if "profile settings" in low:
+            current = line.strip().split(" ")[0]
+        elif low.startswith("state") and current:
+            on = "on" in low
+            profiles.append({"name": current, "on": on})
+            current = None
+    return {"profiles": profiles, "error": None}
+
+
+def assess_vulnerabilities(network, defender):
+    """Combine local signals into plain-language self-exposure findings."""
+    findings = []
+    fw = get_firewall_status()
+    for prof in fw.get("profiles", []):
+        if not prof["on"]:
+            findings.append({
+                "severity": "high",
+                "title": f"Firewall is OFF for the {prof['name']} network",
+                "fix": "Turn Windows Firewall back on in Windows Security.",
+            })
+
+    seen_ports = set()
+    for port in network.get("ports", []):
+        if port["severity"] == "high" and port["binding"] != "localhost only" and port["port"] not in seen_ports:
+            seen_ports.add(port["port"])
+            findings.append({
+                "severity": "high",
+                "title": f"{port['service'] or 'Port ' + str(port['port'])} is reachable from your network",
+                "fix": f"Turn off port {port['port']} if you don't use it.",
+            })
+
+    if defender and defender.get("available"):
+        if not defender.get("antivirus_enabled"):
+            findings.append({"severity": "critical", "title": "Windows Defender antivirus is off",
+                             "fix": "Turn it on in Windows Security."})
+        elif not defender.get("realtime_enabled"):
+            findings.append({"severity": "high", "title": "Defender real-time protection is off",
+                             "fix": "Turn on real-time protection in Windows Security."})
+
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    findings.sort(key=lambda f: order.get(f["severity"], 9))
+    return findings
+
+
+def _load_device_baseline():
+    if DEVICE_BASELINE.exists():
+        try:
+            with open(DEVICE_BASELINE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except Exception:
+            return None
+    return None
+
+
+def _save_device_baseline(macs):
+    try:
+        with open(DEVICE_BASELINE, "w", encoding="utf-8") as f:
+            json.dump(sorted(macs), f, indent=2)
+    except Exception as e:
+        print(f"[NETINTEL] Could not save device baseline: {e}")
+
+
+def check_new_devices(devices):
+    """Return list of devices whose MAC wasn't in the known-network baseline."""
+    macs = {d["mac"] for d in devices if d.get("mac")}
+    if not macs:
+        return []
+
+    known = _load_device_baseline()
+    if known is None:
+        _save_device_baseline(macs)
+        return []
+
+    new = [d for d in devices if d.get("mac") and d["mac"] not in known]
+    if new:
+        _save_device_baseline(known | macs)
+        for d in new:
+            label = d.get("vendor") or "Unknown device"
+            try:
+                from monitor.events_db import record_event
+                record_event("network:new-device", "medium",
+                             f"New device on your network: {label}",
+                             f"{d['ip']} ({d['mac']})")
+            except Exception:
+                pass
+    return new
+
+
+def reset_device_baseline():
+    try:
+        if DEVICE_BASELINE.exists():
+            DEVICE_BASELINE.unlink()
+        return True
+    except Exception:
+        return False

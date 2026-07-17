@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response
 import secrets
 import hashlib
 import pandas as pd
@@ -62,6 +62,15 @@ from monitor.scheduler import (
 )
 from monitor.events_db import get_daily_counts, get_summary
 from monitor.correlation import get_incidents
+from monitor.net_intel import (
+    assess_vulnerabilities,
+    check_new_devices,
+    get_active_connections,
+    get_dns_cache,
+    get_firewall_status,
+    reset_device_baseline,
+    start_connection_monitor_thread,
+)
 from monitor.threat_feeds import (
     load_feeds_config,
     save_feeds_config,
@@ -178,6 +187,43 @@ def login():
 def logout():
     session.pop("authed", None)
     return redirect(url_for("login"))
+
+
+@app.route("/report/weekly")
+def weekly_report():
+    scan_config = load_scan_config()
+    summary = {
+        "login_records": 0, "flagged_ips": 0, "file_alerts": 0,
+        "suspicious_processes": 0, "endpoint_alerts": 0, "active_alerts": 0,
+    }
+    runtime_status = build_runtime_status(0)
+    try:
+        network = get_network_snapshot()
+    except Exception:
+        network = {"devices": [], "ports": [], "error": None}
+    try:
+        defender = get_defender_status()
+    except Exception:
+        defender = {"available": False}
+
+    posture = compute_posture(summary, runtime_status, network, scan_config, defender)
+    trend = get_daily_counts(14)
+    trend_max = max((d["count"] for d in trend), default=0)
+
+    html = render_template(
+        "report.html",
+        generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        posture=posture,
+        week=get_summary(7),
+        trend=trend,
+        trend_max=trend_max,
+        incidents=get_incidents(days=7),
+    )
+    filename = f"doors-ai-report-{datetime.now().strftime('%Y%m%d')}.html"
+    return Response(
+        html, mimetype="text/html",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.route("/setup")
@@ -734,10 +780,25 @@ def build_runtime_status(active_alerts):
     }
 
 
-def compute_posture(summary, runtime_status, network, scan_config, defender=None):
+def compute_posture(summary, runtime_status, network, scan_config, defender=None,
+                    firewall=None, flagged_connections=0):
     """Security health score (0-100) with plain-language recommendations."""
     score = 100
     recommendations = []
+
+    if flagged_connections:
+        score -= min(flagged_connections * 12, 30)
+        recommendations.append(
+            f"{flagged_connections} program(s) are talking to a flagged address right now - check Active Connections."
+        )
+
+    if firewall:
+        off = [p["name"] for p in firewall.get("profiles", []) if not p["on"]]
+        if off:
+            score -= min(len(off) * 8, 16)
+            recommendations.append(
+                f"Windows Firewall is off for: {', '.join(off)}. Turn it back on in Windows Security."
+            )
 
     if defender and defender.get("available"):
         if not defender.get("antivirus_enabled"):
@@ -1316,7 +1377,30 @@ def home():
         print(f"[ERROR] Defender status failed: {e}")
         defender = {"available": False, "error": str(e)}
 
-    posture = compute_posture(summary, runtime_status, network, scan_config, defender)
+    try:
+        connections = get_active_connections()
+    except Exception as e:
+        print(f"[ERROR] Connections failed: {e}")
+        connections = {"connections": [], "flagged": [], "error": str(e)}
+    try:
+        dns = get_dns_cache()
+    except Exception as e:
+        print(f"[ERROR] DNS cache failed: {e}")
+        dns = {"records": [], "error": str(e)}
+    try:
+        firewall = get_firewall_status()
+        vulnerabilities = assess_vulnerabilities(network, defender)
+    except Exception as e:
+        print(f"[ERROR] Vulnerability assessment failed: {e}")
+        firewall, vulnerabilities = {"profiles": []}, []
+    try:
+        new_devices = check_new_devices(network.get("devices", []))
+    except Exception as e:
+        print(f"[ERROR] New-device check failed: {e}")
+        new_devices = []
+
+    posture = compute_posture(summary, runtime_status, network, scan_config, defender,
+                              firewall=firewall, flagged_connections=len(connections.get("flagged", [])))
 
     feeds_config = load_feeds_config()
     feeds = {
@@ -1361,6 +1445,10 @@ def home():
         trend_max=trend_max,
         week_summary=week_summary,
         incidents=incidents,
+        connections=connections,
+        dns=dns,
+        vulnerabilities=vulnerabilities,
+        new_devices=new_devices,
     )
 
 
@@ -1646,6 +1734,15 @@ def publishers_update():
     return redirect(url_for("home"))
 
 
+@app.route("/network/reset-devices", methods=["POST"])
+def network_reset_devices():
+    if reset_device_baseline():
+        flash("Network device list reset. Current devices are now the trusted baseline.", "success")
+    else:
+        flash("Could not reset the device baseline.", "error")
+    return redirect(url_for("home"))
+
+
 @app.route("/system/open-location", methods=["POST"])
 def open_location():
     path = request.form.get("path", "").strip()
@@ -1821,6 +1918,7 @@ if __name__ == "__main__":
     start_endpoint_monitor_thread()
     start_login_import_thread()
     start_scheduler_thread()
+    start_connection_monitor_thread()
     # Bind to localhost only: the dashboard can terminate programs and delete
     # files, so it must never be reachable from the network.
     app.run(host="127.0.0.1", debug=True, use_reloader=False)

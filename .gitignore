@@ -28,3 +28,4 @@ publishers.json
 security_config.json
 scheduler_config.json
 events.db
+network_devices_baseline.json

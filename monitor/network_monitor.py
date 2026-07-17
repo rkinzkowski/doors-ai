@@ -36,6 +36,30 @@ _ARP_ROW = re.compile(
     r"^\s*(\d{1,3}(?:\.\d{1,3}){3})\s+([0-9a-fA-F-]{17})\s+(\w+)", re.MULTILINE
 )
 
+# Small built-in OUI table (MAC prefix -> maker). Best-effort labelling for
+# common home devices; unknown prefixes just show blank. No network lookup.
+_OUI = {
+    "001A11": "Google", "3C5AB4": "Google", "F4F5E8": "Google",
+    "F0EF86": "Google Nest", "D8EB97": "Amazon", "44650D": "Amazon",
+    "FCA183": "Amazon", "68544C": "Amazon", "A002DC": "Amazon",
+    "B827EB": "Raspberry Pi", "DCA632": "Raspberry Pi", "E45F01": "Raspberry Pi",
+    "5CCF7F": "Espressif (IoT)", "240AC4": "Espressif (IoT)", "A4CF12": "Espressif (IoT)",
+    "001451": "Apple", "F0189A": "Apple", "3C0754": "Apple", "A85C2C": "Apple",
+    "AC87A3": "Apple", "8866A5": "Apple", "F80377": "Apple",
+    "002454": "Samsung", "8425DB": "Samsung", "5001BB": "Samsung",
+    "001C42": "Parallels", "000C29": "VMware", "0050 56": "VMware", "080027": "VirtualBox",
+    "001D0F": "TP-Link", "5091E3": "TP-Link", "B0487A": "TP-Link",
+    "18E829": "Ubiquiti", "744401": "Ubiquiti", "FCECDA": "Ubiquiti",
+    "B8278E": "Sonos", "000E58": "Sonos", "CC6DA0": "Roku", "DC3A5E": "Roku",
+    "D052A8": "Roku", "001788": "Philips Hue", "ECB5FA": "Philips Hue",
+    "0017880": "Philips", "B0A737": "Roku",
+}
+
+
+def mac_vendor(mac):
+    prefix = mac.replace("-", "").replace(":", "").upper()[:6]
+    return _OUI.get(prefix, "")
+
 _lock = threading.Lock()
 _cache = {"time": 0, "devices": [], "ports": [], "error": None}
 
@@ -79,6 +103,7 @@ def _collect_devices():
             "ip": ip,
             "mac": mac,
             "type": entry_type.lower(),
+            "vendor": mac_vendor(mac),
         })
 
     devices.sort(key=lambda d: tuple(int(part) for part in d["ip"].split(".")))

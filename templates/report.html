@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Doors AI Security Report — {{ generated }}</title>
+    <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1a1a; max-width: 820px; margin: 0 auto; padding: 40px 28px; line-height: 1.5; }
+        h1 { font-size: 24px; margin: 0 0 2px; }
+        .sub { color: #666; margin: 0 0 24px; font-size: 14px; }
+        h2 { font-size: 16px; border-bottom: 2px solid #eee; padding-bottom: 6px; margin-top: 32px; }
+        .grade { display: inline-flex; align-items: center; gap: 14px; margin: 8px 0 4px; }
+        .badge { display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; color: #fff; font-size: 26px; font-weight: 700; }
+        .g-a, .g-b { background: #0ca30c; } .g-c { background: #d99400; } .g-d { background: #ec835a; } .g-f { background: #d03b3b; }
+        .score { font-size: 22px; font-weight: 700; } .score span { font-size: 14px; color: #888; font-weight: 400; }
+        ul { margin: 8px 0; padding-left: 20px; } li { margin: 3px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+        th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+        th { color: #666; font-size: 12px; }
+        .chart { display: flex; align-items: flex-end; gap: 3px; height: 90px; margin-top: 10px; }
+        .chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+        .chart .bar { width: 60%; background: #2a78d6; border-radius: 3px 3px 0 0; min-height: 1px; }
+        .chart .tick { font-size: 9px; color: #999; margin-top: 3px; }
+        .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+        .sev-critical { background: #fde2e2; color: #b42318; } .sev-high { background: #ffe6d5; color: #c4320a; }
+        .sev-medium { background: #fff3d6; color: #92610a; } .sev-low { background: #e3f6e5; color: #067647; }
+        .muted { color: #888; } .foot { margin-top: 40px; color: #aaa; font-size: 12px; border-top: 1px solid #eee; padding-top: 12px; }
+        @media print { body { padding: 0; } }
+    </style>
+</head>
+<body>
+    <h1>&#128682; Doors AI Security Report</h1>
+    <p class="sub">Generated {{ generated }} &middot; covering the last {{ week.days }} days</p>
+
+    <h2>Overall Health</h2>
+    <div class="grade">
+        <span class="badge g-{{ posture.grade | lower }}">{{ posture.grade }}</span>
+        <span class="score">{{ posture.score }}<span>/100</span> &mdash; {{ posture.label }}</span>
+    </div>
+    <ul>
+        {% for rec in posture.recommendations %}<li>{{ rec }}</li>{% endfor %}
+    </ul>
+
+    <h2>Activity This Week ({{ week.total }} alert{{ 's' if week.total != 1 }})</h2>
+    {% if week.by_kind %}
+    <table>
+        <tr><th>Category</th><th>Count</th></tr>
+        {% for kind, n in week.by_kind.items() %}
+        <tr><td>{{ kind.replace('file:', 'File - ').replace('process', 'Programs').replace('endpoint:', 'System - ') }}</td><td>{{ n }}</td></tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">No alerts this week &mdash; a quiet week is a good week.</p>
+    {% endif %}
+
+    <h2>Alerts Per Day (14 days)</h2>
+    <div class="chart">
+        {% for day in trend %}
+        <div class="col" title="{{ day.date }}: {{ day.count }}">
+            <div class="bar" style="height: {{ (day.count / trend_max * 100) if trend_max else 0 }}%;"></div>
+            <span class="tick">{{ day.label }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2>Recent Incidents</h2>
+    {% if incidents %}
+    <table>
+        <tr><th>Severity</th><th>When</th><th>What happened</th></tr>
+        {% for inc in incidents %}
+        <tr>
+            <td><span class="pill sev-{{ inc.severity }}">{{ inc.severity }}</span></td>
+            <td>{{ inc.start }}</td>
+            <td>{{ inc.summary }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">No incidents recorded.</p>
+    {% endif %}
+
+    <div class="foot">
+        Doors AI &mdash; your personal security guard. This report was generated locally on your PC.
+        To save as PDF, use your browser's Print &rarr; Save as PDF.
+    </div>
+</body>
+</html>

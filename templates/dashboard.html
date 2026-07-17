@@ -734,6 +734,10 @@
                     {% endfor %}
                 </div>
 
+                <div class="tools">
+                    <a class="button-link" href="/report/weekly" title="Download a printable report you can save as PDF">Download Weekly Report</a>
+                </div>
+
                 <h3 style="margin-top: 18px;">This week ({{ week_summary.total }} alert{{ 's' if week_summary.total != 1 }})</h3>
                 {% if week_summary.total %}
                 <div class="summary-grid">
@@ -1250,7 +1254,56 @@
                     <p class="muted">Couldn't get a full picture: {{ network.error }}</p>
                 {% endif %}
 
-                <h3>Open Doors (Listening Ports)</h3>
+                <h3>Weak Spots (Self-Check)</h3>
+                <p class="muted">Local checks for common ways a PC gets exposed. Fix the red ones first.</p>
+                <ul class="plain">
+                    {% for v in vulnerabilities %}
+                    <li>
+                        <span><span class="badge {{ v.severity }}">{{ v.severity }}</span> {{ v.title }}</span>
+                        <span class="muted">{{ v.fix }}</span>
+                    </li>
+                    {% else %}
+                    <li><span class="badge low">good</span> No obvious weak spots found.</li>
+                    {% endfor %}
+                </ul>
+
+                <h3 style="margin-top: 18px;">Active Connections</h3>
+                <p class="muted">Programs currently talking to other computers. A flagged row means a program is contacting an address on your threat list &mdash; investigate it.</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr><th>Status</th><th>Program</th><th>Talking To</th><th class="num">Port</th><th>Notes</th></tr>
+                        {% for c in connections.connections[:40] %}
+                        <tr>
+                            <td>{% if c.flagged %}<span class="badge critical">flagged</span>{% elif c.public %}<span class="badge low">external</span>{% else %}<span class="muted">local</span>{% endif %}</td>
+                            <td>{{ c.process or 'unknown' }}{% if c.pid %} <span class="muted">(PID {{ c.pid }})</span>{% endif %}</td>
+                            <td class="mono">{{ c.remote_ip }}</td>
+                            <td class="num">{{ c.remote_port }}</td>
+                            <td>{{ c.reason or ('External server' if c.public else 'On your network') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="empty">No active connections.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 18px;">Recently Looked-Up Websites (DNS)</h3>
+                <p class="muted">Domains your PC recently resolved, from the local DNS cache. Suspicious ones are flagged.</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr><th>Status</th><th>Domain</th><th>Notes</th></tr>
+                        {% for r in dns.records[:40] %}
+                        <tr>
+                            <td>{% if r.suspicious %}<span class="badge high">check</span>{% else %}<span class="muted">ok</span>{% endif %}</td>
+                            <td class="mono" style="max-width:none;">{{ r.domain }}</td>
+                            <td>{{ r.reason or '' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="empty">{{ dns.error or 'No cached domains.' }}</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 18px;">Open Doors (Listening Ports)</h3>
                 <p class="muted">Programs that accept incoming connections. "Reachable from your network" means other devices could knock on that door.</p>
                 <div class="table-scroll">
                     <table>
@@ -1295,22 +1348,33 @@
                 </div>
 
                 <h3>Devices Seen Nearby</h3>
-                <p class="muted">Devices this PC has recently talked to on your home network (from the system's address cache).</p>
+                <p class="muted">
+                    Devices on your home network. New ones since Doors AI learned your network are marked.
+                    {% if new_devices %}<strong>{{ new_devices | length }} new device(s) just appeared.</strong>{% endif %}
+                </p>
+                <div class="tools">
+                    <form action="/network/reset-devices" method="post" onsubmit="return confirm('Treat all currently-seen devices as trusted? New ones after this will be flagged.');">
+                        <button type="submit">Trust Current Devices</button>
+                    </form>
+                </div>
+                {% set new_macs = new_devices | map(attribute='mac') | list %}
                 <div class="table-scroll">
                     <table>
                         <tr>
                             <th>Address</th>
+                            <th>Maker</th>
                             <th>Hardware ID (MAC)</th>
-                            <th>Connection</th>
+                            <th>Status</th>
                         </tr>
                         {% for device in network.devices %}
                         <tr>
                             <td class="mono">{{ device.ip }}</td>
+                            <td>{{ device.vendor or '&mdash;' | safe }}</td>
                             <td class="mono">{{ device.mac }}</td>
-                            <td>{{ 'recently active' if device.type == 'dynamic' else device.type }}</td>
+                            <td>{% if device.mac in new_macs %}<span class="badge medium">new</span>{% else %}<span class="muted">known</span>{% endif %}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="3" class="empty">No devices seen recently.</td></tr>
+                        <tr><td colspan="4" class="empty">No devices seen recently.</td></tr>
                         {% endfor %}
                     </table>
                 </div>
