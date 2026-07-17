@@ -26,6 +26,8 @@ import psutil
 ROOT_DIR = Path(__file__).resolve().parents[1]
 THREAT_LOG = ROOT_DIR / "threat_list.csv"
 DEVICE_BASELINE = ROOT_DIR / "network_devices_baseline.json"
+CONN_BASELINE = ROOT_DIR / "connection_baseline.json"
+NET_STATE = ROOT_DIR / "net_state.json"
 
 CONN_POLL_SEC = 60
 DNS_TTL_SEC = 60
@@ -108,13 +110,117 @@ def get_active_connections(limit=200):
             "reason": reason,
         })
 
-    rows.sort(key=lambda r: (not r["flagged"], not r["public"]))
+    baseline = _load_conn_baseline() or set()
+    for r in rows:
+        r["new"] = r["public"] and f"{(r['process'] or '').lower()}|{r['remote_ip']}" not in baseline
+
+    rows.sort(key=lambda r: (not r["flagged"], not r["new"], not r["public"]))
     flagged = [r for r in rows if r["flagged"]]
-    return {"connections": rows[:limit], "flagged": flagged, "error": None}
+    return {"connections": rows[:limit], "flagged": flagged,
+            "new_count": sum(1 for r in rows if r["new"]), "error": None}
+
+
+def _load_conn_baseline():
+    if not CONN_BASELINE.exists():
+        return None
+    try:
+        with open(CONN_BASELINE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:
+        return None
+
+
+def _save_conn_baseline(pairs):
+    try:
+        with open(CONN_BASELINE, "w", encoding="utf-8") as f:
+            json.dump(sorted(pairs), f)
+    except Exception as e:
+        print(f"[NETINTEL] Could not save connection baseline: {e}")
+
+
+def reset_conn_baseline():
+    try:
+        if CONN_BASELINE.exists():
+            CONN_BASELINE.unlink()
+        return True
+    except Exception:
+        return False
+
+
+def _current_public_pairs():
+    pairs = set()
+    try:
+        for c in psutil.net_connections(kind="inet"):
+            if c.status == psutil.CONN_ESTABLISHED and c.raddr and _is_public(c.raddr.ip):
+                proc = ""
+                if c.pid:
+                    try:
+                        proc = psutil.Process(c.pid).name()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                pairs.add(f"{proc.lower()}|{c.raddr.ip}")
+    except Exception:
+        pass
+    return pairs
+
+
+def _load_net_state():
+    if NET_STATE.exists():
+        try:
+            with open(NET_STATE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_net_state(state):
+    try:
+        with open(NET_STATE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+
+def check_arp_spoof():
+    """Alert if the router's hardware address (MAC) changes - a MITM signature."""
+    from monitor.network_monitor import get_network_snapshot
+    gw = _gateway_ip()
+    if not gw:
+        return
+    devices = get_network_snapshot().get("devices", [])
+    gw_mac = next((d["mac"] for d in devices if d.get("ip") == gw), "")
+    if not gw_mac:
+        return
+
+    state = _load_net_state()
+    known = state.get("gateway_mac", "")
+    if not known:
+        state["gateway_ip"] = gw
+        state["gateway_mac"] = gw_mac
+        _save_net_state(state)
+        return
+
+    if gw_mac != known:
+        try:
+            from monitor.events_db import record_event
+            record_event("network:arp-spoof", "critical",
+                         "Your router's hardware ID changed",
+                         f"Gateway {gw} was {known}, now {gw_mac} - possible Wi-Fi man-in-the-middle attack")
+        except Exception:
+            pass
+        try:
+            from monitor.notify import notify
+            notify("Doors AI: Network warning",
+                   "Your router's hardware ID changed - possible man-in-the-middle attack.", key="arp-spoof")
+        except Exception:
+            pass
+        state["gateway_mac"] = gw_mac
+        _save_net_state(state)
 
 
 def check_connections_now():
-    """Background pass: alert on connections to known-bad addresses."""
+    """Background pass: alert on bad addresses, brand-new destinations, and ARP spoofing."""
     data = get_active_connections()
     for c in data.get("flagged", []):
         sig = f"{c['remote_ip']}:{c['pid']}"
@@ -135,6 +241,29 @@ def check_connections_now():
             notify("Doors AI: Suspicious connection", f"{title} ({c['remote_ip']})", key=sig)
         except Exception:
             pass
+
+    # New-destination detection: first time a program reaches a new server.
+    pairs = _current_public_pairs()
+    baseline = _load_conn_baseline()
+    if baseline is None:
+        _save_conn_baseline(pairs)
+    else:
+        new = pairs - baseline
+        if new:
+            for pair in list(new)[:10]:
+                proc, _, ip = pair.partition("|")
+                try:
+                    from monitor.events_db import record_event
+                    record_event("network:new-destination", "low",
+                                 f"{proc or 'A program'} reached a new server for the first time", ip)
+                except Exception:
+                    pass
+            _save_conn_baseline(baseline | pairs)
+
+    try:
+        check_arp_spoof()
+    except Exception as e:
+        print(f"[NETINTEL] ARP check error: {e}")
 
 
 def start_connection_monitor_thread():
@@ -284,6 +413,72 @@ def _save_device_baseline(macs):
         print(f"[NETINTEL] Could not save device baseline: {e}")
 
 
+def _human_bytes(n):
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024:
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} PB"
+
+
+def get_network_activity():
+    """System-wide data totals + programs ranked by active connections.
+
+    Per-process byte metering needs a capture driver (see PHASE3.md #8); until
+    then, active-connection count is an honest proxy for 'how busy' a program is.
+    """
+    try:
+        io = psutil.net_io_counters()
+        total_sent, total_recv = io.bytes_sent, io.bytes_recv
+    except Exception:
+        total_sent = total_recv = 0
+
+    counts = {}
+    try:
+        for c in psutil.net_connections(kind="inet"):
+            if c.status != psutil.CONN_ESTABLISHED or not c.raddr or not c.pid:
+                continue
+            try:
+                name = psutil.Process(c.pid).name()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                name = "unknown"
+            entry = counts.setdefault(name, {"name": name, "external": 0, "total": 0})
+            entry["total"] += 1
+            if _is_public(c.raddr.ip):
+                entry["external"] += 1
+    except Exception:
+        pass
+
+    programs = sorted(counts.values(), key=lambda p: (-p["external"], -p["total"]))
+    return {
+        "total_sent": _human_bytes(total_sent),
+        "total_recv": _human_bytes(total_recv),
+        "programs": programs[:15],
+    }
+
+
+_hostname_cache = {}
+_hostname_pending = set()
+
+
+def _resolve_hostname_async(ip):
+    def worker():
+        import socket
+        host = ""
+        try:
+            host = socket.gethostbyaddr(ip)[0]
+        except Exception:
+            host = ""
+        with _lock:
+            _hostname_cache[ip] = host
+            _hostname_pending.discard(ip)
+    with _lock:
+        if ip in _hostname_cache or ip in _hostname_pending:
+            return
+        _hostname_pending.add(ip)
+    threading.Thread(target=worker, daemon=True).start()
+
+
 def _gateway_ip():
     """Best-effort: the .1 of the private subnet is almost always the router."""
     try:
@@ -304,10 +499,15 @@ def enrich_devices(devices):
     from monitor.catalog import describe_device
     gw = _gateway_ip()
     for d in devices:
-        info = describe_device(d.get("vendor", ""), d.get("ip", ""), is_gateway=(d.get("ip") == gw))
+        ip = d.get("ip", "")
+        info = describe_device(d.get("vendor", ""), ip, is_gateway=(ip == gw))
         d["identity"] = info["kind"]
         d["recognized"] = info["known"]
-        d["is_gateway"] = d.get("ip") == gw
+        d["is_gateway"] = ip == gw
+        # Friendly hostname (reverse DNS), resolved in the background and cached.
+        d["hostname"] = _hostname_cache.get(ip, "")
+        if ip and ip not in _hostname_cache:
+            _resolve_hostname_async(ip)
     return devices
 
 
