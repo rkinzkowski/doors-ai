@@ -60,8 +60,9 @@ from monitor.scheduler import (
     set_scheduler_option,
     start_scheduler_thread,
 )
-from monitor.events_db import get_daily_counts, get_summary
+from monitor.events_db import get_daily_counts, get_summary, get_events
 from monitor.correlation import get_incidents
+from monitor.predictor import get_predictions
 from monitor.net_intel import (
     assess_vulnerabilities,
     check_new_devices,
@@ -1409,6 +1410,15 @@ def home():
     except Exception as e:
         print(f"[ERROR] Connections failed: {e}")
         connections = {"connections": [], "flagged": [], "error": str(e)}
+
+    try:
+        predictions = get_predictions(get_events(days=14, limit=2000), connections, network)
+    except Exception as e:
+        print(f"[ERROR] Predictive engine failed: {e}")
+        predictions = {"kill_chain": {"active": False, "predicted_next": [], "stages_seen": []},
+                       "trajectory": {"direction": "steady", "detail": ""},
+                       "watchlist": [], "summary": ""}
+
     try:
         dns = get_dns_cache()
     except Exception as e:
@@ -1479,6 +1489,7 @@ def home():
         trend_max=trend_max,
         week_summary=week_summary,
         incidents=incidents,
+        predictions=predictions,
         connections=connections,
         dns=dns,
         net_activity=net_activity,

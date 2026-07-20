@@ -555,6 +555,7 @@
             <span>Your personal security guard</span>
         </div>
         <nav class="jump">
+            <a href="#predictions">Predictions</a>
             <a href="#incidents">Incidents</a>
             <a href="#history">Trends</a>
             <a href="#logins">Sign-ins</a>
@@ -646,6 +647,65 @@
                 {% endfor %}
             </ul>
         </div>
+
+        <details class="panel" id="predictions" open>
+            <summary>
+                <h2>&#128302; Predictions</h2>
+                <span class="desc">Looking ahead, not just reacting: where any attack activity is in its playbook, what's likely next, and what to keep an eye on before it becomes a problem.</span>
+            </summary>
+            <div class="panel-body">
+                <p style="font-size: 15px; margin-top: 0;"><strong>{{ predictions.summary }}</strong></p>
+
+                {% if predictions.kill_chain.active %}
+                <h3>Attack progress</h3>
+                <p class="muted">Doors AI recognized activity that matches an attacker's step-by-step playbook. Here's how far it appears to have gotten:</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0;">
+                    {% for stage in predictions.kill_chain.stages_seen %}
+                        <span class="badge {{ predictions.kill_chain.severity if loop.last else 'medium' }}">{{ stage.label }}</span>
+                        {% if not loop.last %}<span class="muted" style="align-self:center;">&rarr;</span>{% endif %}
+                    {% endfor %}
+                </div>
+                {% if predictions.kill_chain.predicted_next %}
+                <h3 style="margin-top: 14px;">Most likely next move</h3>
+                <ul class="plain">
+                    {% for nxt in predictions.kill_chain.predicted_next %}
+                    <li style="align-items: flex-start;">
+                        <span style="max-width: 60%;">
+                            <span class="badge {{ predictions.kill_chain.severity }}">predicted</span> <strong>{{ nxt.label }}</strong>
+                            <br><span class="muted">{{ nxt.why }}</span>
+                        </span>
+                        {% if nxt.watch_for %}<span class="muted" style="text-align:right;">Watch for: {{ nxt.watch_for }}</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endif %}
+
+                <h3 style="margin-top: 14px;">Trend</h3>
+                <p class="muted">
+                    <span class="badge {{ 'high' if predictions.trajectory.direction == 'worsening' else 'low' if predictions.trajectory.direction == 'improving' else 'medium' }}">{{ predictions.trajectory.direction }}</span>
+                    {{ predictions.trajectory.detail }}
+                </p>
+
+                <h3 style="margin-top: 14px;">Worth watching (before it's a problem)</h3>
+                <p class="muted">Things that aren't alarms yet, but have enough early warning signs to keep an eye on.</p>
+                <div class="table-scroll">
+                    <table>
+                        <tr><th>Early-risk</th><th>What</th><th>Detail</th><th>Why it stands out</th></tr>
+                        {% for w in predictions.watchlist %}
+                        <tr>
+                            <td><span class="badge {{ 'high' if w.risk >= 60 else 'medium' }}">{{ w.risk }}%</span></td>
+                            <td>{{ w.name }} <span class="muted">({{ w.kind }})</span></td>
+                            <td class="mono">{{ w.detail }}</td>
+                            <td>{{ w.reasons | join('; ') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="empty">Nothing on the watchlist &mdash; no early warning signs.</td></tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </details>
 
         <div class="tiles">
             <div class="tile hero {{ 'alerting' if runtime_status.active_alerts else '' }}">

@@ -183,12 +183,12 @@ Each phase is useful on its own and ships independently.
 
 ---
 
-## Open decisions (for you)
+## Decisions (made 2026-07-20)
 
-1. **Enable the Claude analyst layer?** The Predictive Engine (4a) is always
-   local. The analyst (4b–4d) needs your Anthropic API key and sends machine
-   *metadata* (never file contents) to the API when active. Build 4a first
-   regardless; decide on the analyst layer separately.
-2. **Autonomy default** — Observe (recommended) vs Suggest vs Auto-contain.
-3. **Dependency** — official `anthropic` SDK (one small install) vs raw HTTPS via
-   the existing `requests` dependency (no new install).
+1. **Sequencing: Predictive Engine first.** Build 4a (local, no key), review,
+   then decide on the Claude analyst layer separately.
+2. **Autonomy default: Suggest.** AI proposes actions; the user one-clicks to
+   apply. Human-in-the-loop; nothing automatic. (Applies once 4d is built.)
+3. **Dependency:** still open — resolve when the Claude analyst layer (4b) is
+   green-lit: official `anthropic` SDK (one small install) vs raw HTTPS via the
+   existing `requests` dependency (no new install).
